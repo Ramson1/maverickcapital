@@ -1,0 +1,14 @@
+{
+  "name": "maverick-capital",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/website",
+    "build": "npm run build --workspace=apps/website",
+    "lint": "npm run lint --workspace=apps/website"
+  }
+}
