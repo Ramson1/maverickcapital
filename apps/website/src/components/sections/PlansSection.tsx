@@ -270,7 +270,7 @@ export function PlansSection() {
 
                 {/* CTA button */}
                 <a
-                  href={`/invest/${tier.name.toLowerCase()}`}
+                  href="/dashboard/investments/new"
                   className={cn(
                     "block w-full text-center rounded-xl px-5 py-3 text-sm font-semibold",
                     "transition-all duration-200",

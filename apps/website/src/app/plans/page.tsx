@@ -481,7 +481,7 @@ export default function PlansPage() {
 
                   {/* CTA button */}
                   <Link
-                    href="/register"
+                    href="/dashboard/investments/new"
                     className={cn(
                       "block w-full rounded-xl px-5 py-3 text-center text-sm font-semibold transition-all duration-200",
                       tier.highlight
