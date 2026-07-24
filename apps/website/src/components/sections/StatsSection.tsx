@@ -8,28 +8,28 @@ import { cn } from "@/lib/utils";
 const stats = [
   {
     icon: DollarSign,
-    value: 50,
+    value: 37.5,
     suffix: "M+",
     prefix: "$",
     label: "Assets Under Management",
   },
   {
     icon: Users,
-    value: 10000,
+    value: 8427,
     suffix: "+",
     prefix: "",
     label: "Active Investors",
   },
   {
     icon: Activity,
-    value: 99.9,
+    value: 99.7,
     suffix: "%",
     prefix: "",
     label: "Platform Uptime",
   },
   {
     icon: Globe,
-    value: 15,
+    value: 23,
     suffix: "+",
     prefix: "",
     label: "Countries Served",
@@ -64,10 +64,10 @@ function AnimatedNumber({ value, suffix, prefix }: { value: number; suffix: stri
   }, [isInView, value]);
 
   const formattedValue = value >= 1000
-    ? Math.floor(displayValue).toLocaleString()
+    ? displayValue.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
     : value % 1 !== 0
     ? displayValue.toFixed(1)
-    : Math.floor(displayValue).toString();
+    : displayValue.toFixed(1);
 
   return (
     <span ref={ref}>
@@ -78,13 +78,13 @@ function AnimatedNumber({ value, suffix, prefix }: { value: number; suffix: stri
 
 export function StatsSection() {
   return (
-    <section className="relative -mt-20 z-20 px-6 pb-20">
+    <section className="relative bg-gradient-to-b from-brand-50 to-white px-6 py-20">
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
             <motion.div
               key={stat.label}
-              className="group rounded-2xl glass p-8 shadow-lg transition-all hover:-translate-y-2 hover:shadow-2xl"
+              className="group rounded-2xl bg-white p-8 shadow-lg ring-1 ring-brand-100 transition-all hover:-translate-y-2 hover:shadow-2xl"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}

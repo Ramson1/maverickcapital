@@ -15,6 +15,7 @@ import {
   DollarSign,
   Shield,
   MessageCircle,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,82 +23,84 @@ import { cn } from "@/lib/utils";
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
 
-interface PlanFeature {
+interface TierFeature {
   text: string;
+  included: boolean;
 }
 
-interface Plan {
+interface Tier {
   name: string;
   minInvestment: string;
-  maxInvestment: string;
-  roi: string;
-  duration: string;
-  features: PlanFeature[];
-  popular: boolean;
+  icon: React.ElementType;
+  description: string;
+  features: TierFeature[];
+  highlight?: boolean;
 }
 
-const plans: Plan[] = [
+const tiers: Tier[] = [
   {
     name: "Starter",
     minInvestment: "$100",
-    maxInvestment: "$999",
-    roi: "8-12%",
-    duration: "3 Months",
-    popular: false,
+    icon: TrendingUp,
+    description: "Begin your investment journey with professional management",
     features: [
-      { text: "Basic portfolio management" },
-      { text: "Email support" },
-      { text: "Weekly reports" },
-      { text: "Access to crypto spot trading" },
-      { text: "Mobile app access" },
+      { text: "10% monthly returns", included: true },
+      { text: "Automated portfolio management", included: true },
+      { text: "Weekly performance reports", included: true },
+      { text: "Email support", included: true },
+      { text: "Basic risk management", included: true },
+      { text: "Monthly withdrawals", included: true },
+      { text: "Dedicated account manager", included: false },
+      { text: "Priority support", included: false },
     ],
   },
   {
     name: "Growth",
     minInvestment: "$1,000",
-    maxInvestment: "$9,999",
-    roi: "12-18%",
-    duration: "6 Months",
-    popular: true,
+    icon: Users,
+    description: "Enhanced service for serious investors",
     features: [
-      { text: "Everything in Starter" },
-      { text: "Dedicated account manager" },
-      { text: "Daily reports" },
-      { text: "Access to all trading markets" },
-      { text: "Priority support" },
-      { text: "Trading signals (basic)" },
+      { text: "10% monthly returns", included: true },
+      { text: "Advanced portfolio strategy", included: true },
+      { text: "Bi-weekly performance reports", included: true },
+      { text: "Priority email & chat support", included: true },
+      { text: "Enhanced risk controls", included: true },
+      { text: "Weekly withdrawals", included: true },
+      { text: "Market alerts & insights", included: true },
+      { text: "Dedicated account manager", included: false },
     ],
   },
   {
     name: "Professional",
     minInvestment: "$10,000",
-    maxInvestment: "$49,999",
-    roi: "18-25%",
-    duration: "12 Months",
-    popular: false,
+    icon: Shield,
+    description: "Institutional-grade management with dedicated support",
+    highlight: true,
     features: [
-      { text: "Everything in Growth" },
-      { text: "Advanced trading signals" },
-      { text: "Forex & indices access" },
-      { text: "Monthly strategy calls" },
-      { text: "Custom portfolio allocation" },
-      { text: "VIP support" },
+      { text: "10% monthly returns", included: true },
+      { text: "Algorithmic trading strategies", included: true },
+      { text: "Daily performance reports", included: true },
+      { text: "24/7 priority support", included: true },
+      { text: "Institutional risk controls", included: true },
+      { text: "Daily withdrawals", included: true },
+      { text: "Dedicated account manager", included: true },
+      { text: "Exclusive market research", included: true },
     ],
   },
   {
     name: "Elite",
     minInvestment: "$50,000",
-    maxInvestment: "Unlimited",
-    roi: "25-35%",
-    duration: "24 Months",
-    popular: false,
+    icon: Sparkles,
+    description: "White-glove service for high-net-worth investors",
     features: [
-      { text: "Everything in Professional" },
-      { text: "Personal fund manager" },
-      { text: "Custom investment strategy" },
-      { text: "Exclusive market insights" },
-      { text: "Quarterly in-person reviews" },
-      { text: "White-glove concierge service" },
+      { text: "10% monthly returns", included: true },
+      { text: "Custom portfolio strategy", included: true },
+      { text: "Real-time performance dashboard", included: true },
+      { text: "24/7 VIP support line", included: true },
+      { text: "Hedge-fund grade risk models", included: true },
+      { text: "Instant withdrawals", included: true },
+      { text: "Private wealth advisor", included: true },
+      { text: "Quarterly strategy sessions", included: true },
     ],
   },
 ];
@@ -105,20 +108,17 @@ const plans: Plan[] = [
 /* Comparison table data */
 const comparisonFeatures = [
   { label: "Min. Investment", values: ["$100", "$1,000", "$10,000", "$50,000"] },
-  { label: "Max. Investment", values: ["$999", "$9,999", "$49,999", "Unlimited"] },
-  { label: "Expected ROI / month", values: ["8-12%", "12-18%", "18-25%", "25-35%"] },
-  { label: "Duration", values: ["3 Months", "6 Months", "12 Months", "24 Months"] },
-  { label: "Portfolio Management", values: ["Basic", "Dedicated Manager", "Custom Allocation", "Personal Fund Manager"] },
-  { label: "Support Level", values: ["Email", "Priority", "VIP", "White-glove"] },
-  { label: "Reports", values: ["Weekly", "Daily", "Daily + Calls", "Real-time Dashboard"] },
-  { label: "Crypto Spot Trading", values: [true, true, true, true] },
-  { label: "All Trading Markets", values: [false, true, true, true] },
-  { label: "Trading Signals", values: [false, "Basic", "Advanced", "Advanced + Exclusive"] },
-  { label: "Forex & Indices", values: [false, false, true, true] },
-  { label: "Strategy Calls", values: [false, false, "Monthly", "Quarterly In-person"] },
-  { label: "Mobile App Access", values: [true, true, true, true] },
-  { label: "Custom Investment Strategy", values: [false, false, false, true] },
-  { label: "Concierge Service", values: [false, false, false, true] },
+  { label: "Monthly Returns", values: ["10%", "10%", "10%", "10%"] },
+  { label: "Portfolio Management", values: ["Automated", "Advanced Strategy", "Algorithmic", "Custom Strategy"] },
+  { label: "Support Level", values: ["Email", "Priority Email & Chat", "24/7 Priority", "24/7 VIP"] },
+  { label: "Reports", values: ["Weekly", "Bi-weekly", "Daily", "Real-time Dashboard"] },
+  { label: "Risk Management", values: ["Basic", "Enhanced", "Institutional", "Hedge-fund Grade"] },
+  { label: "Withdrawal Frequency", values: ["Monthly", "Weekly", "Daily", "Instant"] },
+  { label: "Dedicated Account Manager", values: [false, false, true, true] },
+  { label: "Market Alerts & Insights", values: [false, true, true, true] },
+  { label: "Exclusive Research", values: [false, false, true, true] },
+  { label: "Private Wealth Advisor", values: [false, false, false, true] },
+  { label: "Quarterly Strategy Sessions", values: [false, false, false, true] },
 ];
 
 /* FAQ data */
@@ -356,13 +356,13 @@ export default function PlansPage() {
             viewport={{ once: true, margin: "-50px" }}
             className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-5"
           >
-            {plans.map((plan) => (
+            {tiers.map((tier) => (
               <motion.div
-                key={plan.name}
+                key={tier.name}
                 variants={cardVariants}
                 className={cn(
                   "group relative flex flex-col rounded-2xl transition-all duration-300 hover:-translate-y-1",
-                  plan.popular
+                  tier.highlight
                     ? [
                         "bg-brand-950 text-white",
                         "shadow-2xl shadow-brand-600/20",
@@ -377,119 +377,100 @@ export default function PlansPage() {
                       ]
                 )}
               >
-                {/* Popular badge */}
-                {plan.popular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span
+                <div className="flex flex-col flex-1 p-6 sm:p-7">
+                  {/* Icon and name */}
+                  <div className="mb-4">
+                    <div
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5",
-                        "bg-gradient-to-r from-brand-500 to-brand-600",
-                        "text-xs font-semibold text-white",
-                        "shadow-lg shadow-brand-500/30"
+                        "mb-3 h-12 w-12 rounded-xl flex items-center justify-center",
+                        tier.highlight
+                          ? "bg-brand-500/20"
+                          : "bg-gradient-to-br from-brand-500 to-brand-600"
                       )}
                     >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Most Popular
-                    </span>
+                      <tier.icon
+                        className={cn(
+                          "h-6 w-6",
+                          tier.highlight ? "text-brand-300" : "text-white"
+                        )}
+                      />
+                    </div>
+                    <h3
+                      className={cn(
+                        "text-xl font-bold mb-2",
+                        tier.highlight ? "text-white" : "text-brand-950"
+                      )}
+                    >
+                      {tier.name}
+                    </h3>
+                    <p
+                      className={cn(
+                        "text-sm leading-relaxed",
+                        tier.highlight ? "text-slate-400" : "text-slate-600"
+                      )}
+                    >
+                      {tier.description}
+                    </p>
                   </div>
-                )}
 
-                <div className="flex flex-col flex-1 p-6 sm:p-7">
-                  {/* Plan name badge */}
-                  <h3
+                  {/* Minimum investment */}
+                  <div
                     className={cn(
-                      "text-lg font-semibold mb-1",
-                      plan.popular ? "text-brand-300" : "text-brand-600"
+                      "mb-4 rounded-xl p-4",
+                      tier.highlight ? "bg-white/5" : "bg-brand-50"
                     )}
                   >
-                    {plan.name} Plan
-                  </h3>
-
-                  {/* ROI highlight */}
-                  <div className="mb-4">
-                    <span
+                    <div
                       className={cn(
-                        "text-3xl font-bold tracking-tight",
-                        plan.popular ? "text-white" : "text-brand-950"
+                        "text-xs font-medium mb-1",
+                        tier.highlight ? "text-slate-400" : "text-slate-600"
                       )}
                     >
-                      {plan.roi}
-                    </span>
-                    <span
+                      Minimum Investment
+                    </div>
+                    <div
                       className={cn(
-                        "ml-1.5 text-sm",
-                        plan.popular ? "text-slate-400" : "text-slate-500"
+                        "text-2xl font-bold",
+                        tier.highlight ? "text-white" : "text-brand-950"
                       )}
                     >
-                      per month
-                    </span>
-                  </div>
-
-                  {/* Divider */}
-                  <div
-                    className={cn(
-                      "h-px w-full mb-4",
-                      plan.popular ? "bg-white/10" : "bg-slate-100"
-                    )}
-                  />
-
-                  {/* Investment details */}
-                  <div className="space-y-2.5 mb-5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className={cn("flex items-center gap-1.5", plan.popular ? "text-slate-400" : "text-slate-500")}>
-                        <DollarSign className="h-3.5 w-3.5" />
-                        Min. Investment
-                      </span>
-                      <span className={cn("font-semibold", plan.popular ? "text-white" : "text-brand-950")}>
-                        {plan.minInvestment}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className={cn("flex items-center gap-1.5", plan.popular ? "text-slate-400" : "text-slate-500")}>
-                        <TrendingUp className="h-3.5 w-3.5" />
-                        Max. Investment
-                      </span>
-                      <span className={cn("font-semibold", plan.popular ? "text-white" : "text-brand-950")}>
-                        {plan.maxInvestment}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className={cn("flex items-center gap-1.5", plan.popular ? "text-slate-400" : "text-slate-500")}>
-                        <Clock className="h-3.5 w-3.5" />
-                        Duration
-                      </span>
-                      <span className={cn("font-semibold", plan.popular ? "text-white" : "text-brand-950")}>
-                        {plan.duration}
-                      </span>
+                      {tier.minInvestment}
                     </div>
                   </div>
-
-                  {/* Divider */}
-                  <div
-                    className={cn(
-                      "h-px w-full mb-5",
-                      plan.popular ? "bg-white/10" : "bg-slate-100"
-                    )}
-                  />
 
                   {/* Features */}
-                  <ul className="mb-7 flex-1 space-y-3">
-                    {plan.features.map((feature) => (
-                      <li key={feature.text} className="flex items-start gap-2.5">
-                        <div
-                          className={cn(
-                            "mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full",
-                            plan.popular
-                              ? "bg-brand-500/20 text-brand-300"
-                              : "bg-brand-50 text-brand-600"
-                          )}
-                        >
-                          <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                        </div>
+                  <ul className="space-y-3 mb-6 flex-1">
+                    {tier.features.map((feature) => (
+                      <li
+                        key={feature.text}
+                        className="flex items-start gap-2.5"
+                      >
+                        {feature.included ? (
+                          <div
+                            className={cn(
+                              "mt-0.5 h-4 w-4 rounded-full flex items-center justify-center flex-shrink-0",
+                              tier.highlight
+                                ? "bg-brand-500/20 text-brand-300"
+                                : "bg-brand-50 text-brand-600"
+                            )}
+                          >
+                            <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                          </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              "mt-0.5 h-4 w-4 rounded-full flex-shrink-0",
+                              tier.highlight ? "bg-white/5" : "bg-slate-100"
+                            )}
+                          />
+                        )}
                         <span
                           className={cn(
                             "text-sm leading-snug",
-                            plan.popular ? "text-slate-300" : "text-slate-600"
+                            !feature.included &&
+                              (tier.highlight ? "text-slate-500" : "text-slate-400"),
+                            feature.included &&
+                              (tier.highlight ? "text-slate-300" : "text-slate-600")
                           )}
                         >
                           {feature.text}
@@ -503,7 +484,7 @@ export default function PlansPage() {
                     href="/register"
                     className={cn(
                       "block w-full rounded-xl px-5 py-3 text-center text-sm font-semibold transition-all duration-200",
-                      plan.popular
+                      tier.highlight
                         ? [
                             "bg-white text-brand-950",
                             "hover:bg-brand-50",
@@ -517,7 +498,7 @@ export default function PlansPage() {
                           ]
                     )}
                   >
-                    Get Started
+                    Start Investing
                   </Link>
                 </div>
               </motion.div>
@@ -561,17 +542,17 @@ export default function PlansPage() {
                   <th className="px-6 py-4 text-sm font-semibold text-slate-600">
                     Feature
                   </th>
-                  {plans.map((plan) => (
-                    <th key={plan.name} className="px-6 py-4 text-center">
+                  {tiers.map((tier) => (
+                    <th key={tier.name} className="px-6 py-4 text-center">
                       <span
                         className={cn(
                           "text-sm font-bold",
-                          plan.popular ? "text-brand-600" : "text-brand-950"
+                          tier.highlight ? "text-brand-600" : "text-brand-950"
                         )}
                       >
-                        {plan.name}
+                        {tier.name}
                       </span>
-                      {plan.popular && (
+                      {tier.highlight && (
                         <span className="ml-2 inline-flex items-center rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-semibold text-white">
                           Popular
                         </span>

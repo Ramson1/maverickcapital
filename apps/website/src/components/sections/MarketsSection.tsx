@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react";
 
 interface MarketAsset {
   name: string;
@@ -21,7 +22,7 @@ interface MarketAsset {
 interface MarketCategory {
   name: string;
   icon: React.ElementType;
-  chartBars: number[];
+  tradingViewSymbol: string;
   trend: "up" | "down";
   assets: MarketAsset[];
   accentColor: string;
@@ -31,7 +32,7 @@ const markets: MarketCategory[] = [
   {
     name: "Cryptocurrency",
     icon: Bitcoin,
-    chartBars: [40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88],
+    tradingViewSymbol: "BINANCE:BTCUSDT",
     trend: "up",
     assets: [
       { name: "Bitcoin", symbol: "BTC", change: 3.42 },
@@ -44,7 +45,7 @@ const markets: MarketCategory[] = [
   {
     name: "Forex",
     icon: Globe,
-    chartBars: [60, 55, 70, 50, 65, 45, 75, 60, 80, 55, 70, 65],
+    tradingViewSymbol: "FX:EURUSD",
     trend: "up",
     assets: [
       { name: "EUR/USD", symbol: "EURUSD", change: 0.12 },
@@ -57,7 +58,7 @@ const markets: MarketCategory[] = [
   {
     name: "Gold & Commodities",
     icon: CircleDollarSign,
-    chartBars: [50, 55, 58, 52, 60, 65, 62, 70, 68, 75, 72, 80],
+    tradingViewSymbol: "TVC:GOLD",
     trend: "up",
     assets: [
       { name: "Gold", symbol: "XAU", change: 1.24 },
@@ -70,7 +71,7 @@ const markets: MarketCategory[] = [
   {
     name: "Stock Indices",
     icon: BarChart3,
-    chartBars: [45, 60, 50, 70, 55, 65, 75, 60, 80, 70, 85, 78],
+    tradingViewSymbol: "FOREXCOM:SPXUSD",
     trend: "up",
     assets: [
       { name: "S&P 500", symbol: "SPX", change: 0.95 },
@@ -100,36 +101,37 @@ const cardVariants = {
   },
 } as const;
 
-function MiniChart({
-  bars,
-  trend,
-}: {
-  bars: number[];
-  trend: "up" | "down";
-}) {
-  const maxBar = Math.max(...bars);
-  return (
-    <div className="flex items-end gap-[3px] h-16 w-full">
-      {bars.map((value, i) => {
-        const height = (value / maxBar) * 100;
-        const isLast = i === bars.length - 1;
-        return (
-          <div
-            key={i}
-            className={cn(
-              "flex-1 rounded-sm transition-all duration-300",
-              isLast
-                ? trend === "up"
-                  ? "bg-emerald-400"
-                  : "bg-red-400"
-                : "bg-white/15"
-            )}
-            style={{ height: `${height}%` }}
-          />
-        );
-      })}
-    </div>
-  );
+function TradingViewChart({ symbol }: { symbol: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      symbol: symbol,
+      width: "100%",
+      height: "100%",
+      locale: "en",
+      dateRange: "1D",
+      colorTheme: "dark",
+      isTransparent: true,
+      autosize: true,
+      largeChartUrl: "",
+    });
+
+    containerRef.current.appendChild(script);
+
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
+    };
+  }, [symbol]);
+
+  return <div ref={containerRef} className="h-32 w-full" />;
 }
 
 export function MarketsSection() {
@@ -198,9 +200,9 @@ export function MarketsSection() {
                 </h3>
               </div>
 
-              {/* Mini chart */}
+              {/* Real-time chart */}
               <div className="mb-5">
-                <MiniChart bars={market.chartBars} trend={market.trend} />
+                <TradingViewChart symbol={market.tradingViewSymbol} />
               </div>
 
               {/* Assets list */}

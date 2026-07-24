@@ -9,10 +9,16 @@ import { TickerSection } from "@/components/sections/TickerSection";
 import { TestimonialsSection } from "@/components/sections/TestimonialsSection";
 import { FAQSection } from "@/components/sections/FAQSection";
 import { CTASection } from "@/components/sections/CTASection";
+import { TransactionNotification } from "@/components/sections/TransactionNotification";
+import { BlogSection } from "@/components/sections/BlogSection";
+import { OrganizationSchema, FAQSchema, ServiceSchema } from "@/components/StructuredData";
 
 export default function HomePage() {
   return (
     <>
+      <OrganizationSchema />
+      <FAQSchema />
+      <ServiceSchema />
       <HeroSection />
       <StatsSection />
       <IntroSection />
@@ -22,8 +28,10 @@ export default function HomePage() {
       <PlansSection />
       <TickerSection />
       <TestimonialsSection />
+      <BlogSection />
       <FAQSection />
       <CTASection />
+      <TransactionNotification />
     </>
   );
 }

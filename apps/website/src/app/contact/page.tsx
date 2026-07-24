@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin,
   Mail,
-  Phone,
   Clock,
   ChevronRight,
   Send,
@@ -48,14 +47,8 @@ const contactInfo = [
   {
     icon: Mail,
     title: "Email",
-    detail: "info@maverickcapital.com",
-    href: "mailto:info@maverickcapital.com",
-  },
-  {
-    icon: Phone,
-    title: "Phone",
-    detail: "+234 800 000 0000",
-    href: "tel:+2348000000000",
+    detail: "Maverikcapital@gmail.com",
+    href: "mailto:Maverikcapital@gmail.com?subject=Inquiry%20from%20Website&body=Hello%20Maverick%20Capital%20Team%2C%0A%0AI%20would%20like%20to%20know%20more%20about%20your%20investment%20services.%0A%0AThank%20you.",
   },
   {
     icon: Clock,

@@ -497,7 +497,7 @@ export default function AboutPage() {
             {achievements.map((stat, index) => (
               <motion.div
                 key={stat.label}
-                className="group rounded-2xl glass p-8 text-center shadow-lg transition-all hover:-translate-y-2 hover:shadow-2xl"
+                className="group rounded-2xl border border-white/20 bg-white/10 p-8 text-center shadow-lg backdrop-blur-md transition-all hover:-translate-y-2 hover:bg-white/15 hover:shadow-2xl"
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}

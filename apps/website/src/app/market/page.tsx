@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useId } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -23,6 +23,35 @@ import { cn } from "@/lib/utils";
 /* ------------------------------------------------------------------ */
 /*  TradingView Widget Components                                      */
 /* ------------------------------------------------------------------ */
+
+function TradingViewMiniChart({ symbol }: { symbol: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    containerRef.current.innerHTML = "";
+
+    const script = document.createElement("script");
+    script.src =
+      "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      symbol: symbol,
+      width: "100%",
+      height: "100%",
+      locale: "en",
+      dateRange: "1D",
+      colorTheme: "dark",
+      isTransparent: true,
+      autosize: true,
+    });
+
+    containerRef.current.appendChild(script);
+  }, [symbol]);
+
+  return <div ref={containerRef} className="h-40 w-full" />;
+}
 
 function TradingViewTickerTape() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +97,8 @@ function TradingViewTickerTape() {
 
 function TradingViewAdvancedChart() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartId = useRef(`tradingview_chart_${Date.now()}`);
+  const id = useId();
+  const chartId = `tradingview_chart_${id.replace(/:/g, "_")}`;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -80,7 +110,9 @@ function TradingViewAdvancedChart() {
     script.type = "text/javascript";
     script.async = true;
     script.innerHTML = JSON.stringify({
-      autosize: true,
+      autosize: false,
+      width: "100%",
+      height: "600",
       symbol: "BINANCE:BTCUSDT",
       interval: "D",
       timezone: "Etc/UTC",
@@ -90,7 +122,7 @@ function TradingViewAdvancedChart() {
       allow_symbol_change: true,
       calendar: false,
       support_host: "https://www.tradingview.com",
-      container_id: chartId.current,
+      container_id: chartId,
     });
 
     containerRef.current.appendChild(script);
@@ -100,15 +132,20 @@ function TradingViewAdvancedChart() {
     <div
       className="tradingview-widget-container"
       ref={containerRef}
-      id={chartId.current}
-      style={{ height: "500px", width: "100%" }}
-    />
+      style={{ height: "600px", width: "100%" }}
+    >
+      <div
+        id={chartId}
+        style={{ height: "600px", width: "100%" }}
+      />
+    </div>
   );
 }
 
 function TradingViewMarketOverview() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const widgetId = useRef(`tradingview_overview_${Date.now()}`);
+  const id = useId();
+  const widgetId = `tradingview_overview_${id.replace(/:/g, "_")}`;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -129,7 +166,7 @@ function TradingViewMarketOverview() {
       showSymbolLogo: true,
       showFloatingTooltip: false,
       width: "100%",
-      height: "660",
+      height: "700",
       plotLineColorGrowing: "rgba(59, 130, 246, 1)",
       plotLineColorFalling: "rgba(239, 68, 68, 1)",
       gridLineColor: "rgba(255, 255, 255, 0.06)",
@@ -173,8 +210,19 @@ function TradingViewMarketOverview() {
           ],
           originalTitle: "Indices",
         },
+        {
+          title: "Commodities",
+          symbols: [
+            { s: "TVC:GOLD", d: "Gold" },
+            { s: "TVC:SILVER", d: "Silver" },
+            { s: "TVC:PLATINUM", d: "Platinum" },
+            { s: "NYMEX:CL1!", d: "Crude Oil" },
+            { s: "COMEX:GC1!", d: "Gold Futures" },
+          ],
+          originalTitle: "Commodities",
+        },
       ],
-      container_id: widgetId.current,
+      container_id: widgetId,
     });
 
     containerRef.current.appendChild(script);
@@ -184,9 +232,13 @@ function TradingViewMarketOverview() {
     <div
       className="tradingview-widget-container"
       ref={containerRef}
-      id={widgetId.current}
-      style={{ height: "660px", width: "100%" }}
-    />
+      style={{ height: "700px", width: "100%" }}
+    >
+      <div
+        id={widgetId}
+        style={{ height: "700px", width: "100%" }}
+      />
+    </div>
   );
 }
 
@@ -235,9 +287,7 @@ interface MarketAsset {
 interface MarketCategory {
   name: string;
   icon: React.ElementType;
-  chartBars: number[];
-  trend: "up" | "down";
-  assets: MarketAsset[];
+  tradingViewSymbol: string;
   accentColor: string;
 }
 
@@ -245,53 +295,25 @@ const marketCategories: MarketCategory[] = [
   {
     name: "Crypto",
     icon: Bitcoin,
-    chartBars: [40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88],
-    trend: "up",
-    assets: [
-      { name: "Bitcoin", symbol: "BTC", price: "$67,432.18", change: 3.42 },
-      { name: "Ethereum", symbol: "ETH", price: "$3,521.07", change: 2.18 },
-      { name: "Solana", symbol: "SOL", price: "$172.45", change: -1.05 },
-      { name: "BNB", symbol: "BNB", price: "$612.30", change: 0.87 },
-    ],
+    tradingViewSymbol: "BINANCE:BTCUSDT",
     accentColor: "from-amber-400 to-orange-500",
   },
   {
     name: "Forex",
     icon: Globe,
-    chartBars: [60, 55, 70, 50, 65, 45, 75, 60, 80, 55, 70, 65],
-    trend: "up",
-    assets: [
-      { name: "EUR/USD", symbol: "EURUSD", price: "1.0842", change: 0.12 },
-      { name: "GBP/USD", symbol: "GBPUSD", price: "1.2634", change: -0.08 },
-      { name: "USD/JPY", symbol: "USDJPY", price: "154.28", change: 0.34 },
-      { name: "AUD/USD", symbol: "AUDUSD", price: "0.6512", change: -0.21 },
-    ],
+    tradingViewSymbol: "FX_IDC:EURUSD",
     accentColor: "from-brand-400 to-brand-600",
   },
   {
     name: "Commodities",
     icon: CircleDollarSign,
-    chartBars: [50, 55, 58, 52, 60, 65, 62, 70, 68, 75, 72, 80],
-    trend: "up",
-    assets: [
-      { name: "Gold", symbol: "XAU", price: "$2,341.50", change: 1.24 },
-      { name: "Silver", symbol: "XAG", price: "$27.82", change: 0.87 },
-      { name: "Crude Oil", symbol: "WTI", price: "$78.45", change: -2.15 },
-      { name: "Platinum", symbol: "XPT", price: "$982.30", change: 0.45 },
-    ],
+    tradingViewSymbol: "TVC:GOLD",
     accentColor: "from-yellow-400 to-amber-500",
   },
   {
     name: "Indices",
     icon: BarChart3,
-    chartBars: [45, 60, 50, 70, 55, 65, 75, 60, 80, 70, 85, 78],
-    trend: "up",
-    assets: [
-      { name: "S&P 500", symbol: "SPX", price: "5,234.18", change: 0.95 },
-      { name: "NASDAQ", symbol: "NDX", price: "18,432.75", change: 1.67 },
-      { name: "FTSE 100", symbol: "FTSE", price: "8,147.03", change: -0.32 },
-      { name: "DAX", symbol: "DAX", price: "18,604.52", change: 0.54 },
-    ],
+    tradingViewSymbol: "FOREXCOM:SPXUSD",
     accentColor: "from-emerald-400 to-teal-500",
   },
 ];
@@ -567,51 +589,9 @@ export default function MarketPage() {
                   </h3>
                 </div>
 
-                {/* Mini chart */}
-                <div className="mb-5">
-                  <MiniChart
-                    bars={category.chartBars}
-                    trend={category.trend}
-                  />
-                </div>
-
-                {/* Assets list */}
-                <div className="space-y-2.5 mb-6">
-                  {category.assets.map((asset) => (
-                    <div
-                      key={asset.symbol}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-white">
-                          {asset.symbol}
-                        </span>
-                        <span className="hidden text-xs text-slate-500 sm:inline">
-                          {asset.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-slate-300">
-                          {asset.price}
-                        </span>
-                        <div
-                          className={cn(
-                            "flex items-center gap-0.5 text-xs font-medium",
-                            asset.change >= 0
-                              ? "text-emerald-400"
-                              : "text-red-400"
-                          )}
-                        >
-                          {asset.change >= 0 ? (
-                            <ArrowUpRight className="h-3 w-3" />
-                          ) : (
-                            <ArrowDownRight className="h-3 w-3" />
-                          )}
-                          {Math.abs(asset.change).toFixed(2)}%
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                {/* TradingView Chart */}
+                <div className="mb-6 overflow-hidden rounded-xl bg-slate-950/50">
+                  <TradingViewMiniChart symbol={category.tradingViewSymbol} />
                 </div>
 
                 {/* Link */}
