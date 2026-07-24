@@ -1,37 +1,76 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { ArrowDownRight, Plus, Search, Filter, Download } from "lucide-react";
+import { Plus, Search, Download, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
-const mockDeposits = [
-  { id: "1", amount: 5000, currency: "USDT", network: "TRC20", status: "completed", txHash: "0x1234...5678", date: "2026-07-23" },
-  { id: "2", amount: 7500, currency: "USDT", network: "ERC20", status: "completed", txHash: "0x9abc...def0", date: "2026-07-19" },
-  { id: "3", amount: 2000, currency: "BTC", network: "Bitcoin", status: "pending", txHash: "0x5678...1234", date: "2026-07-25" },
-  { id: "4", amount: 10000, currency: "USDT", network: "TRC20", status: "completed", txHash: "0xabcd...ef01", date: "2026-07-10" },
-  { id: "5", amount: 3000, currency: "USDT", network: "BEP20", status: "rejected", txHash: "-", date: "2026-07-05" },
-];
+interface Deposit {
+  id: string;
+  amount: number;
+  currency: string;
+  network: string;
+  tx_hash: string | null;
+  status: string;
+  proof_url: string | null;
+  submitted_at: string;
+}
 
 const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = {
-  completed: "success",
+  approved: "success",
+  confirming: "default",
   pending: "warning",
   rejected: "destructive",
-  processing: "default",
 };
 
 export default function DepositsPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
+
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
 
-  const filtered = mockDeposits.filter((d) => {
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchDeposits = async () => {
+      const { data } = await supabase
+        .from("mc_deposits")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("submitted_at", { ascending: false });
+
+      if (data) {
+        setDeposits(
+          data.map((d) => ({ ...d, amount: Number(d.amount) }))
+        );
+      }
+      setLoading(false);
+    };
+
+    fetchDeposits();
+  }, [user, supabase]);
+
+  const filtered = deposits.filter((d) => {
     if (statusFilter !== "all" && d.status !== statusFilter) return false;
-    if (search && !d.txHash.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !d.tx_hash?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -54,7 +93,7 @@ export default function DepositsPage() {
             <Input placeholder="Search by tx hash..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex gap-2">
-            {["all", "completed", "pending", "rejected"].map((s) => (
+            {["all", "pending", "confirming", "approved", "rejected"].map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
@@ -90,18 +129,24 @@ export default function DepositsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                {filtered.map((dep) => (
-                  <tr key={dep.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                    <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(dep.amount)}</td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{dep.currency}</td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{dep.network}</td>
-                    <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{dep.txHash}</td>
-                    <td className="px-6 py-4">
-                      <Badge variant={statusVariant[dep.status] || "default"}>{dep.status}</Badge>
-                    </td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(dep.date).toLocaleDateString()}</td>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-surface-400">No deposits found</td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((dep) => (
+                    <tr key={dep.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
+                      <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(dep.amount)}</td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{dep.currency}</td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{dep.network}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{dep.tx_hash || "-"}</td>
+                      <td className="px-6 py-4">
+                        <Badge variant={statusVariant[dep.status] || "default"}>{dep.status}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(dep.submitted_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

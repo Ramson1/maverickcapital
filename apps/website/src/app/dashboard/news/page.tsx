@@ -1,34 +1,88 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Pin, Bookmark, BookmarkCheck, Clock, ArrowRight } from "lucide-react";
+import { Pin, Bookmark, BookmarkCheck, Clock, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
-const mockNews = [
-  { id: "1", title: "Platform Maintenance Scheduled for July 30", body: "We will be performing scheduled maintenance on July 30 from 02:00 to 06:00 UTC. During this time, the platform may be temporarily unavailable.", category: "Maintenance", image: null, isPinned: true, date: "2026-07-25", author: "System" },
-  { id: "2", title: "New Investment Plan: Elite Tier Now Available", body: "We're excited to announce our new Elite investment tier with up to 40% annual returns. Minimum investment of $100,000.", category: "Announcement", image: null, isPinned: true, date: "2026-07-22", author: "Admin" },
-  { id: "3", title: "Market Update: Bitcoin Breaks $70K Resistance", body: "Bitcoin has successfully broken through the $70,000 resistance level, signaling strong bullish momentum for the coming weeks.", category: "Market News", image: null, isPinned: false, date: "2026-07-24", author: "Analyst" },
-  { id: "4", title: "Summer Promotion: 0% Deposit Fees", body: "For the month of August, we're waiving all deposit fees. Fund your account without any additional charges.", category: "Promotions", image: null, isPinned: false, date: "2026-07-20", author: "Admin" },
-  { id: "5", title: "Investment Update: Q2 Performance Review", body: "Our Q2 investment plans have delivered an average return of 12.5%, exceeding market benchmarks by 8%.", category: "Investment Updates", image: null, isPinned: false, date: "2026-07-18", author: "Analyst" },
-];
+interface NewsItem {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+  image_url: string | null;
+  is_pinned: boolean;
+  published_at: string | null;
+  created_at: string;
+}
 
 const categories = ["All", "Announcement", "Maintenance", "Investment Updates", "Market News", "Promotions"];
 
 export default function NewsPage() {
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const { user } = useAuth();
+  const supabase = createClient();
+
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [bookmarked, setBookmarked] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = mockNews.filter((n) => selectedCategory === "All" || n.category === selectedCategory);
-  const pinned = filtered.filter((n) => n.isPinned);
-  const regular = filtered.filter((n) => !n.isPinned);
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch published news
+      const { data: newsData } = await supabase
+        .from("mc_news")
+        .select("*")
+        .order("is_pinned", { ascending: false })
+        .order("published_at", { ascending: false });
 
-  const toggleBookmark = (id: string) => {
-    setBookmarked((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]);
+      if (newsData) setNews(newsData);
+
+      // Fetch bookmarks if user is logged in
+      if (user) {
+        const { data: bookmarkData } = await supabase
+          .from("mc_news_bookmarks")
+          .select("news_id")
+          .eq("user_id", user.id);
+
+        if (bookmarkData) setBookmarked(bookmarkData.map((b) => b.news_id));
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [user, supabase]);
+
+  const filtered = news.filter((n) => selectedCategory === "All" || n.category.toLowerCase() === selectedCategory.toLowerCase());
+  const pinned = filtered.filter((n) => n.is_pinned);
+  const regular = filtered.filter((n) => !n.is_pinned);
+
+  const toggleBookmark = async (id: string) => {
+    if (!user) return;
+
+    const isBookmarked = bookmarked.includes(id);
+
+    if (isBookmarked) {
+      await supabase.from("mc_news_bookmarks").delete().eq("user_id", user.id).eq("news_id", id);
+      setBookmarked((prev) => prev.filter((b) => b !== id));
+    } else {
+      await supabase.from("mc_news_bookmarks").insert({ user_id: user.id, news_id: id });
+      setBookmarked((prev) => [...prev, id]);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -46,31 +100,42 @@ export default function NewsPage() {
       </div>
 
       <div className="space-y-4">
-        {[...pinned, ...regular].map((news) => (
-          <Card key={news.id} className={cn("transition-colors", news.isPinned && "border-accent-200 dark:border-accent-800")}>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    {news.isPinned && <Pin className="h-3.5 w-3.5 text-accent-600 dark:text-accent-400" />}
-                    <Badge variant="secondary">{news.category}</Badge>
-                    <span className="flex items-center gap-1 text-xs text-surface-500"><Clock className="h-3 w-3" />{new Date(news.date).toLocaleDateString()}</span>
+        {[...pinned, ...regular].length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-sm text-surface-500">No news articles found</p>
+          </div>
+        ) : (
+          [...pinned, ...regular].map((item) => (
+            <Card key={item.id} className={cn("transition-colors", item.is_pinned && "border-accent-200 dark:border-accent-800")}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {item.is_pinned && <Pin className="h-3.5 w-3.5 text-accent-600 dark:text-accent-400" />}
+                      <Badge variant="secondary">{item.category}</Badge>
+                      <span className="flex items-center gap-1 text-xs text-surface-500">
+                        <Clock className="h-3 w-3" />
+                        {new Date(item.published_at || item.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-surface-900 dark:text-white">{item.title}</h3>
+                    <p className={cn("mt-2 text-sm text-surface-600 dark:text-surface-400", expandedId !== item.id && "line-clamp-2")}>
+                      {item.body}
+                    </p>
+                    <button onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} className="mt-2 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400">
+                      {expandedId === item.id ? "Show less" : "Read more"}
+                    </button>
                   </div>
-                  <h3 className="font-semibold text-surface-900 dark:text-white">{news.title}</h3>
-                  <p className={cn("mt-2 text-sm text-surface-600 dark:text-surface-400", expandedId !== news.id && "line-clamp-2")}>
-                    {news.body}
-                  </p>
-                  <button onClick={() => setExpandedId(expandedId === news.id ? null : news.id)} className="mt-2 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400">
-                    {expandedId === news.id ? "Show less" : "Read more"}
-                  </button>
+                  {user && (
+                    <button onClick={() => toggleBookmark(item.id)} className="ml-4 shrink-0">
+                      {bookmarked.includes(item.id) ? <BookmarkCheck className="h-5 w-5 text-brand-600" /> : <Bookmark className="h-5 w-5 text-surface-400" />}
+                    </button>
+                  )}
                 </div>
-                <button onClick={() => toggleBookmark(news.id)} className="ml-4 shrink-0">
-                  {bookmarked.includes(news.id) ? <BookmarkCheck className="h-5 w-5 text-brand-600" /> : <Bookmark className="h-5 w-5 text-surface-400" />}
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );

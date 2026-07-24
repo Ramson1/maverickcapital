@@ -1,25 +1,129 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Wallet, ArrowUpRight, ArrowDownRight, Copy, Plus, Trash2, ExternalLink } from "lucide-react";
+import { Wallet, ArrowUpRight, ArrowDownRight, Copy, Plus, Trash2, ExternalLink, Loader2, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
-const mockWallets = [
-  { id: "1", label: "Main USDT (TRC20)", address: "TN3W4H8rK2p8B6wQ9mL5J7vR1sD9fG2hXk", currency: "USDT", network: "TRC20", isDefault: true },
-  { id: "2", label: "BTC Wallet", address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", currency: "BTC", network: "Bitcoin", isDefault: false },
-];
+interface WalletItem {
+  id: string;
+  label: string;
+  address: string;
+  currency: string;
+  network: string;
+  is_default: boolean;
+}
+
+interface ProfileData {
+  wallet_balance: number;
+  total_investment: number;
+  total_profit: number;
+}
 
 export default function WalletPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
+
+  const [wallets, setWallets] = useState<WalletItem[]>([]);
+  const [profile, setProfile] = useState<ProfileData>({ wallet_balance: 0, total_investment: 0, total_profit: 0 });
+  const [activeInvestmentCount, setActiveInvestmentCount] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newWallet, setNewWallet] = useState({ label: "", address: "", currency: "USDT", network: "TRC20" });
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchData = async () => {
+      // Fetch wallets
+      const { data: walletsData } = await supabase
+        .from("mc_wallets")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false });
+
+      if (walletsData) setWallets(walletsData);
+
+      // Fetch profile balances
+      const { data: profileData } = await supabase
+        .from("mc_profiles")
+        .select("wallet_balance, total_investment, total_profit")
+        .eq("id", user.id)
+        .single();
+
+      if (profileData) {
+        setProfile({
+          wallet_balance: Number(profileData.wallet_balance || 0),
+          total_investment: Number(profileData.total_investment || 0),
+          total_profit: Number(profileData.total_profit || 0),
+        });
+      }
+
+      // Count active investments
+      const { count } = await supabase
+        .from("mc_investments")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      setActiveInvestmentCount(count || 0);
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [user, supabase]);
 
   const copyAddress = (address: string) => {
     navigator.clipboard.writeText(address);
     setCopied(address);
     setTimeout(() => setCopied(null), 2000);
   };
+
+  const handleAddWallet = async () => {
+    if (!user || !newWallet.label || !newWallet.address) return;
+    setAdding(true);
+
+    const { data, error } = await supabase
+      .from("mc_wallets")
+      .insert({
+        user_id: user.id,
+        label: newWallet.label,
+        address: newWallet.address,
+        currency: newWallet.currency,
+        network: newWallet.network,
+        is_default: wallets.length === 0,
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setWallets((prev) => [...prev, data]);
+      setNewWallet({ label: "", address: "", currency: "USDT", network: "TRC20" });
+      setShowAddForm(false);
+    }
+    setAdding(false);
+  };
+
+  const handleDeleteWallet = async (id: string) => {
+    await supabase.from("mc_wallets").delete().eq("id", id);
+    setWallets((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -28,11 +132,47 @@ export default function WalletPage() {
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Wallet</h1>
           <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">Manage your wallet addresses and balances</p>
         </div>
-        <Button>
+        <Button onClick={() => setShowAddForm(!showAddForm)}>
           <Plus className="mr-2 h-4 w-4" />
           Add Wallet
         </Button>
       </div>
+
+      {/* Add Wallet Form */}
+      {showAddForm && (
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-surface-900 dark:text-white">New Wallet Address</h3>
+              <button onClick={() => setShowAddForm(false)}><X className="h-4 w-4 text-surface-500" /></button>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Label</label>
+                <Input placeholder="e.g. Main USDT Wallet" value={newWallet.label} onChange={(e) => setNewWallet({ ...newWallet, label: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Address</label>
+                <Input placeholder="Wallet address" value={newWallet.address} onChange={(e) => setNewWallet({ ...newWallet, address: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Currency</label>
+                <Input value={newWallet.currency} onChange={(e) => setNewWallet({ ...newWallet, currency: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Network</label>
+                <Input placeholder="e.g. TRC20, ERC20" value={newWallet.network} onChange={(e) => setNewWallet({ ...newWallet, network: e.target.value })} />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={handleAddWallet} disabled={adding || !newWallet.label || !newWallet.address}>
+                {adding ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</> : "Add Wallet"}
+              </Button>
+              <Button variant="outline" onClick={() => setShowAddForm(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Balance Overview */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -41,8 +181,7 @@ export default function WalletPage() {
             <CardTitle className="text-sm font-medium text-surface-500 dark:text-surface-400">Total Balance</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-surface-900 dark:text-white">{formatCurrency(12500)}</p>
-            <p className="mt-1 text-xs text-success-600 dark:text-success-500">+2.4% from last week</p>
+            <p className="text-2xl font-bold text-surface-900 dark:text-white">{formatCurrency(profile.wallet_balance)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -50,8 +189,8 @@ export default function WalletPage() {
             <CardTitle className="text-sm font-medium text-surface-500 dark:text-surface-400">Invested</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-brand-600 dark:text-brand-400">{formatCurrency(25000)}</p>
-            <p className="mt-1 text-xs text-surface-500">3 active investments</p>
+            <p className="text-2xl font-bold text-brand-600 dark:text-brand-400">{formatCurrency(profile.total_investment)}</p>
+            <p className="mt-1 text-xs text-surface-500">{activeInvestmentCount} active investments</p>
           </CardContent>
         </Card>
         <Card>
@@ -59,17 +198,17 @@ export default function WalletPage() {
             <CardTitle className="text-sm font-medium text-surface-500 dark:text-surface-400">Available Profit</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-success-600 dark:text-success-500">{formatCurrency(3750)}</p>
+            <p className="text-2xl font-bold text-success-600 dark:text-success-500">{formatCurrency(profile.total_profit)}</p>
             <p className="mt-1 text-xs text-surface-500">Ready to withdraw</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-surface-500 dark:text-surface-400">Pending</CardTitle>
+            <CardTitle className="text-sm font-medium text-surface-500 dark:text-surface-400">Wallets</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-warning-600 dark:text-warning-500">{formatCurrency(1000)}</p>
-            <p className="mt-1 text-xs text-surface-500">1 withdrawal pending</p>
+            <p className="text-2xl font-bold text-surface-900 dark:text-white">{wallets.length}</p>
+            <p className="mt-1 text-xs text-surface-500">Saved addresses</p>
           </CardContent>
         </Card>
       </div>
@@ -115,38 +254,48 @@ export default function WalletPage() {
       <div>
         <h2 className="mb-4 text-lg font-semibold text-surface-900 dark:text-white">Saved Wallets</h2>
         <div className="space-y-3">
-          {mockWallets.map((wallet) => (
-            <Card key={wallet.id}>
-              <CardContent className="flex items-center justify-between p-5">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
-                    <Wallet className="h-5 w-5 text-surface-600 dark:text-surface-400" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-surface-900 dark:text-white">{wallet.label}</p>
-                      {wallet.isDefault && <Badge variant="default">Default</Badge>}
+          {wallets.length === 0 ? (
+            <div className="py-8 text-center">
+              <Wallet className="mx-auto h-12 w-12 text-surface-300 dark:text-surface-600" />
+              <p className="mt-4 text-sm text-surface-500">No wallets saved yet</p>
+              <Button className="mt-4" onClick={() => setShowAddForm(true)}>
+                <Plus className="mr-2 h-4 w-4" />Add Your First Wallet
+              </Button>
+            </div>
+          ) : (
+            wallets.map((wallet) => (
+              <Card key={wallet.id}>
+                <CardContent className="flex items-center justify-between p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
+                      <Wallet className="h-5 w-5 text-surface-600 dark:text-surface-400" />
                     </div>
-                    <p className="mt-0.5 font-mono text-sm text-surface-500 dark:text-surface-400">
-                      {wallet.address.slice(0, 12)}...{wallet.address.slice(-8)}
-                    </p>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-surface-900 dark:text-white">{wallet.label}</p>
+                        {wallet.is_default && <Badge variant="default">Default</Badge>}
+                      </div>
+                      <p className="mt-0.5 font-mono text-sm text-surface-500 dark:text-surface-400">
+                        {wallet.address.slice(0, 12)}...{wallet.address.slice(-8)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => copyAddress(wallet.address)}>
-                    <Copy className="h-4 w-4" />
-                    {copied === wallet.address ? "Copied!" : ""}
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-danger-600 hover:text-danger-700">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => copyAddress(wallet.address)}>
+                      <Copy className="h-4 w-4" />
+                      {copied === wallet.address ? "Copied!" : ""}
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-danger-600 hover:text-danger-700" onClick={() => handleDeleteWallet(wallet.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </div>

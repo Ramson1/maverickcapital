@@ -1,26 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Search, CheckCircle, XCircle, Eye } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
-const mockDeposits = [
-  { id: "1", user: "John Doe", email: "john@example.com", amount: 5000, currency: "USDT", network: "TRC20", status: "pending", txHash: "0x1234...5678", date: "2026-07-25" },
-  { id: "2", user: "Sarah Smith", email: "sarah@example.com", amount: 10000, currency: "USDT", network: "ERC20", status: "pending", txHash: "0x9abc...def0", date: "2026-07-25" },
-  { id: "3", user: "Mike Johnson", email: "mike@example.com", amount: 2000, currency: "BTC", network: "Bitcoin", status: "pending", txHash: "0x5678...1234", date: "2026-07-24" },
-  { id: "4", user: "John Doe", email: "john@example.com", amount: 7500, currency: "USDT", network: "TRC20", status: "approved", txHash: "0xabcd...ef01", date: "2026-07-23" },
-  { id: "5", user: "Alex Brown", email: "alex@example.com", amount: 3000, currency: "USDT", network: "BEP20", status: "rejected", txHash: "0xdef0...2345", date: "2026-07-22" },
-];
+interface Deposit {
+  id: string;
+  user_name: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  network: string;
+  tx_hash: string | null;
+  status: string;
+  submitted_at: string;
+}
 
-const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = { pending: "warning", approved: "success", rejected: "destructive", processing: "default" };
+const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = { pending: "warning", confirming: "default", approved: "success", rejected: "destructive" };
 
 export default function AdminDepositsPage() {
+  const supabase = createClient();
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [statusFilter, setStatusFilter] = useState("pending");
-  const filtered = mockDeposits.filter((d) => statusFilter === "all" || d.status === statusFilter);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  const fetchDeposits = async () => {
+    const { data, error } = await supabase
+      .from("mc_deposits")
+      .select("*")
+      .order("submitted_at", { ascending: false });
+
+    if (error || !data) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch user profiles
+    const userIds = [...new Set(data.map((d) => d.user_id))];
+    const { data: profiles } = await supabase
+      .from("mc_profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+
+    const nameMap: Record<string, string> = {};
+    if (profiles) profiles.forEach((p) => { nameMap[p.id] = p.full_name || p.id.slice(0, 8); });
+
+    const rows: Deposit[] = data.map((d) => ({
+      id: d.id,
+      user_name: nameMap[d.user_id] || d.user_id.slice(0, 8),
+      user_id: d.user_id,
+      amount: Number(d.amount),
+      currency: d.currency,
+      network: d.network,
+      tx_hash: d.tx_hash,
+      status: d.status,
+      submitted_at: d.submitted_at,
+    }));
+
+    setDeposits(rows);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchDeposits();
+  }, []);
+
+  const handleAction = async (depositId: string, action: "approved" | "rejected") => {
+    setProcessing(depositId);
+    await supabase
+      .from("mc_deposits")
+      .update({ status: action, reviewed_at: new Date().toISOString() })
+      .eq("id", depositId);
+
+    setDeposits((prev) => prev.map((d) => d.id === depositId ? { ...d, status: action } : d));
+    setProcessing(null);
+  };
+
+  const filtered = deposits.filter((d) => statusFilter === "all" || d.status === statusFilter);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -30,7 +99,7 @@ export default function AdminDepositsPage() {
       </div>
 
       <div className="flex gap-2">
-        {["pending", "approved", "rejected", "all"].map((s) => (
+        {["pending", "confirming", "approved", "rejected", "all"].map((s) => (
           <button key={s} onClick={() => setStatusFilter(s)} className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", statusFilter === s ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400" : "text-surface-500 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800")}>
             {s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
@@ -53,27 +122,47 @@ export default function AdminDepositsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                {filtered.map((dep) => (
-                  <tr key={dep.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                    <td className="px-6 py-4"><div><p className="font-medium text-surface-900 dark:text-white">{dep.user}</p><p className="text-xs text-surface-500">{dep.email}</p></div></td>
-                    <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(dep.amount)} <span className="text-xs text-surface-500">{dep.currency}</span></td>
-                    <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{dep.network}</td>
-                    <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{dep.txHash}</td>
-                    <td className="px-6 py-4"><Badge variant={statusVariant[dep.status]}>{dep.status}</Badge></td>
-                    <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{new Date(dep.date).toLocaleDateString()}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-1">
-                        {dep.status === "pending" && (
-                          <>
-                            <Button variant="ghost" size="sm" className="text-success-600 hover:bg-success-50"><CheckCircle className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="sm" className="text-danger-600 hover:bg-danger-50"><XCircle className="h-4 w-4" /></Button>
-                          </>
-                        )}
-                        <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-surface-500">No deposits found</td></tr>
+                ) : (
+                  filtered.map((dep) => (
+                    <tr key={dep.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
+                      <td className="px-6 py-4"><p className="font-medium text-surface-900 dark:text-white">{dep.user_name}</p></td>
+                      <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(dep.amount)} <span className="text-xs text-surface-500">{dep.currency}</span></td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{dep.network}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{dep.tx_hash || "-"}</td>
+                      <td className="px-6 py-4"><Badge variant={statusVariant[dep.status] || "default"}>{dep.status}</Badge></td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{new Date(dep.submitted_at).toLocaleDateString()}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-1">
+                          {(dep.status === "pending" || dep.status === "confirming") && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-success-600 hover:bg-success-50"
+                                disabled={processing === dep.id}
+                                onClick={() => handleAction(dep.id, "approved")}
+                              >
+                                {processing === dep.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-danger-600 hover:bg-danger-50"
+                                disabled={processing === dep.id}
+                                onClick={() => handleAction(dep.id, "rejected")}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

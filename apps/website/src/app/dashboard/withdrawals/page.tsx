@@ -1,27 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { ArrowUpRight, Plus, Search, Download } from "lucide-react";
+import { Plus, Download, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
-const mockWithdrawals = [
-  { id: "1", amount: 1000, currency: "USDT", network: "TRC20", status: "completed", wallet: "TN3W...2hXk", txHash: "0xaaaa...bbbb", date: "2026-07-22" },
-  { id: "2", amount: 500, currency: "USDT", network: "ERC20", status: "processing", wallet: "0x1234...5678", txHash: "-", date: "2026-07-24" },
-  { id: "3", amount: 2000, currency: "USDT", network: "TRC20", status: "pending", wallet: "TN3W...2hXk", txHash: "-", date: "2026-07-25" },
-  { id: "4", amount: 750, currency: "BTC", network: "Bitcoin", status: "completed", wallet: "bc1q...0wlh", txHash: "0xcccc...dddd", date: "2026-07-15" },
-];
+interface Withdrawal {
+  id: string;
+  amount: number;
+  currency: string;
+  network: string;
+  destination_address: string;
+  tx_hash: string | null;
+  status: string;
+  submitted_at: string;
+}
 
 const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = {
-  completed: "success", pending: "warning", processing: "default", rejected: "destructive", sent: "default",
+  completed: "success", sent: "success", approved: "default", pending: "warning", processing: "default", rejected: "destructive",
 };
 
 export default function WithdrawalsPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
+
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
-  const filtered = mockWithdrawals.filter((w) => statusFilter === "all" || w.status === statusFilter);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchWithdrawals = async () => {
+      const { data } = await supabase
+        .from("mc_withdrawals")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("submitted_at", { ascending: false });
+
+      if (data) {
+        setWithdrawals(
+          data.map((w) => ({ ...w, amount: Number(w.amount) }))
+        );
+      }
+      setLoading(false);
+    };
+
+    fetchWithdrawals();
+  }, [user, supabase]);
+
+  const filtered = withdrawals.filter((w) => statusFilter === "all" || w.status === statusFilter);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -39,7 +79,7 @@ export default function WithdrawalsPage() {
       <Card>
         <CardContent className="flex flex-wrap items-center gap-4 p-4">
           <div className="flex gap-2">
-            {["all", "pending", "processing", "completed"].map((s) => (
+            {["all", "pending", "processing", "sent", "completed", "rejected"].map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
@@ -66,7 +106,7 @@ export default function WithdrawalsPage() {
               <thead>
                 <tr className="border-b border-surface-200 dark:border-surface-700">
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Wallet</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Destination</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Network</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Tx Hash</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Status</th>
@@ -74,16 +114,26 @@ export default function WithdrawalsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                {filtered.map((w) => (
-                  <tr key={w.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                    <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(w.amount)}</td>
-                    <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{w.wallet}</td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{w.network}</td>
-                    <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{w.txHash}</td>
-                    <td className="px-6 py-4"><Badge variant={statusVariant[w.status] || "default"}>{w.status}</Badge></td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(w.date).toLocaleDateString()}</td>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-surface-400">No withdrawals found</td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((w) => (
+                    <tr key={w.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
+                      <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(w.amount)}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">
+                        {w.destination_address.length > 20
+                          ? `${w.destination_address.slice(0, 12)}...${w.destination_address.slice(-8)}`
+                          : w.destination_address}
+                      </td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{w.network}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{w.tx_hash || "-"}</td>
+                      <td className="px-6 py-4"><Badge variant={statusVariant[w.status] || "default"}>{w.status}</Badge></td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(w.submitted_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

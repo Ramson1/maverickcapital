@@ -1,13 +1,14 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Plus, TrendingUp, DollarSign, Users, BarChart3, Download, FileText, Clock, Search, Bell, Send, Edit, Trash2, Pin, Image, Eye, MessageSquare, AlertCircle, CheckCircle, Activity, Shield, Settings, Layout, Megaphone } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, Users, BarChart3, Download, FileText, Clock, Search, Bell, Send, Edit, Trash2, Pin, Image, Eye, MessageSquare, AlertCircle, CheckCircle, Activity, Shield, Settings, Layout, Megaphone, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
-// Admin Signals Page
+// Admin Signals Page (placeholder - no dummy data)
 export function AdminSignalsPage() {
   return (
     <div className="space-y-6">
@@ -28,7 +29,7 @@ export function AdminSignalsPage() {
   );
 }
 
-// Admin News Page
+// Admin News Page (placeholder - no dummy data)
 export function AdminNewsPage() {
   return (
     <div className="space-y-6">
@@ -49,7 +50,7 @@ export function AdminNewsPage() {
   );
 }
 
-// Admin Support Page
+// Admin Support Page (placeholder - no dummy data)
 export function AdminSupportPage() {
   return (
     <div className="space-y-6">
@@ -69,8 +70,82 @@ export function AdminSupportPage() {
   );
 }
 
-// Admin Analytics Page
+// Admin Analytics Page - Real data
 export function AdminAnalyticsPage() {
+  const supabase = createClient();
+  const [stats, setStats] = useState<{ totalRevenue: number; activeUsers: number; totalInvestments: number; growthRate: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      // Total revenue = approved deposits
+      const { data: deposits } = await supabase
+        .from("mc_deposits")
+        .select("amount")
+        .eq("status", "approved");
+      const totalRevenue = deposits?.reduce((sum, d) => sum + Number(d.amount), 0) || 0;
+
+      // Active users = profiles with account_status = 'active'
+      const { count: activeUsers } = await supabase
+        .from("mc_profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("account_status", "active");
+
+      // Total investments
+      const { data: investments } = await supabase
+        .from("mc_investments")
+        .select("amount");
+      const totalInvestments = investments?.reduce((sum, i) => sum + Number(i.amount), 0) || 0;
+
+      // Growth rate: compare this month's deposits vs last month
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+
+      const { data: thisMonthDeps } = await supabase
+        .from("mc_deposits")
+        .select("amount")
+        .eq("status", "approved")
+        .gte("submitted_at", thisMonthStart);
+
+      const { data: lastMonthDeps } = await supabase
+        .from("mc_deposits")
+        .select("amount")
+        .eq("status", "approved")
+        .gte("submitted_at", lastMonthStart)
+        .lt("submitted_at", thisMonthStart);
+
+      const thisMonthTotal = thisMonthDeps?.reduce((sum, d) => sum + Number(d.amount), 0) || 0;
+      const lastMonthTotal = lastMonthDeps?.reduce((sum, d) => sum + Number(d.amount), 0) || 0;
+      const growthRate = lastMonthTotal > 0 ? (((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100).toFixed(1) : "0.0";
+
+      setStats({
+        totalRevenue: totalRevenue,
+        activeUsers: activeUsers || 0,
+        totalInvestments: totalInvestments,
+        growthRate: `${Number(growthRate) >= 0 ? "+" : ""}${growthRate}%`,
+      });
+      setLoading(false);
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
+
+  const statCards = stats ? [
+    { name: "Total Revenue", value: formatCurrency(stats.totalRevenue), icon: DollarSign },
+    { name: "Active Users", value: stats.activeUsers.toLocaleString(), icon: Users },
+    { name: "Total Investments", value: formatCurrency(stats.totalInvestments), icon: TrendingUp },
+    { name: "Growth Rate", value: stats.growthRate, icon: BarChart3 },
+  ] : [];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -81,7 +156,7 @@ export function AdminAnalyticsPage() {
         <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export Report</Button>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[{ name: "Total Revenue", value: formatCurrency(42800), icon: DollarSign }, { name: "Active Users", value: "892", icon: Users }, { name: "Total Investments", value: formatCurrency(284500), icon: TrendingUp }, { name: "Growth Rate", value: "+15.3%", icon: BarChart3 }].map((stat) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.name}>
@@ -104,15 +179,61 @@ export function AdminAnalyticsPage() {
   );
 }
 
-// Admin Audit Logs Page
+// Admin Audit Logs Page - Real data
 export function AdminAuditLogsPage() {
-  const logs = [
-    { id: "1", admin: "admin@maverick.com", action: "Approved deposit", target: "John Doe - $5,000", time: "2026-07-25 10:30", ip: "192.168.1.1" },
-    { id: "2", admin: "admin@maverick.com", action: "Applied profit", target: "Growth Plan investments", time: "2026-07-25 09:00", ip: "192.168.1.1" },
-    { id: "3", admin: "moderator@maverick.com", action: "Posted signal", target: "BTC/USDT", time: "2026-07-24 14:30", ip: "192.168.1.2" },
-    { id: "4", admin: "admin@maverick.com", action: "Suspended user", target: "emma@example.com", time: "2026-07-24 11:00", ip: "192.168.1.1" },
-    { id: "5", admin: "admin@maverick.com", action: "Processed withdrawal", target: "Mike Johnson - $2,000", time: "2026-07-23 16:45", ip: "192.168.1.1" },
-  ];
+  const supabase = createClient();
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      const { data, error } = await supabase
+        .from("mc_audit_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error || !data) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch admin profiles
+      const userIds = [...new Set(data.map((l) => l.user_id).filter(Boolean))];
+      let nameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("mc_profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+        if (profiles) {
+          profiles.forEach((p) => { nameMap[p.id] = p.full_name || p.id.slice(0, 8); });
+        }
+      }
+
+      const mapped = data.map((l) => ({
+        id: l.id,
+        admin: nameMap[l.user_id] || l.user_id?.slice(0, 8) || "System",
+        action: l.action,
+        target: l.entity_type ? `${l.entity_type}${l.entity_id ? ` - ${l.entity_id.slice(0, 8)}` : ""}` : "-",
+        time: new Date(l.created_at).toLocaleString(),
+        ip: l.ip_address || "-",
+      }));
+
+      setLogs(mapped);
+      setLoading(false);
+    };
+
+    fetchLogs();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -137,15 +258,19 @@ export function AdminAuditLogsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                    <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{log.admin}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-surface-900 dark:text-white">{log.action}</td>
-                    <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{log.target}</td>
-                    <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{log.time}</td>
-                    <td className="px-6 py-4 font-mono text-xs text-surface-500">{log.ip}</td>
-                  </tr>
-                ))}
+                {logs.length === 0 ? (
+                  <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-surface-500">No audit logs found</td></tr>
+                ) : (
+                  logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{log.admin}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-surface-900 dark:text-white">{log.action}</td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{log.target}</td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{log.time}</td>
+                      <td className="px-6 py-4 font-mono text-xs text-surface-500">{log.ip}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -155,7 +280,7 @@ export function AdminAuditLogsPage() {
   );
 }
 
-// Admin Notifications Page
+// Admin Notifications Page (placeholder - no dummy data)
 export function AdminNotificationsPage() {
   return (
     <div className="space-y-6">
@@ -176,7 +301,7 @@ export function AdminNotificationsPage() {
   );
 }
 
-// Admin CMS Page
+// Admin CMS Page (placeholder - no dummy data)
 export function AdminCMSPage() {
   return (
     <div className="space-y-6">
@@ -206,7 +331,7 @@ export function AdminCMSPage() {
   );
 }
 
-// Admin Wallets Page
+// Admin Wallets Page (placeholder - no dummy data)
 export function AdminWalletsPage() {
   return (
     <div className="space-y-6">

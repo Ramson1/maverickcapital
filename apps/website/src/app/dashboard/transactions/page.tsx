@@ -1,23 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Search, Download, Filter } from "lucide-react";
+import { Search, Download, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
-const mockTransactions = [
-  { id: "1", type: "deposit", amount: 5000, currency: "USDT", status: "completed", reference: "DEP-001", date: "2026-07-23" },
-  { id: "2", type: "investment", amount: 10000, currency: "USDT", status: "active", reference: "INV-001", date: "2026-07-22" },
-  { id: "3", type: "profit", amount: 250, currency: "USDT", status: "completed", reference: "PRF-001", date: "2026-07-21" },
-  { id: "4", type: "withdrawal", amount: 1000, currency: "USDT", status: "pending", reference: "WDR-001", date: "2026-07-20" },
-  { id: "5", type: "deposit", amount: 7500, currency: "USDT", status: "completed", reference: "DEP-002", date: "2026-07-19" },
-  { id: "6", type: "profit", amount: 500, currency: "USDT", status: "completed", reference: "PRF-002", date: "2026-07-18" },
-  { id: "7", type: "investment", amount: 5000, currency: "USDT", status: "active", reference: "INV-002", date: "2026-07-15" },
-  { id: "8", type: "withdrawal", amount: 750, currency: "BTC", status: "completed", reference: "WDR-002", date: "2026-07-10" },
-];
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  reference_id: string | null;
+  status: string;
+  description: string | null;
+  created_at: string;
+}
 
 const typeColors: Record<string, string> = {
   deposit: "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400",
@@ -25,6 +27,7 @@ const typeColors: Record<string, string> = {
   investment: "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400",
   profit: "bg-accent-50 text-accent-700 dark:bg-accent-500/10 dark:text-accent-400",
   bonus: "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400",
+  subscription: "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400",
 };
 
 const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = {
@@ -32,16 +35,55 @@ const statusVariant: Record<string, "success" | "warning" | "destructive" | "def
 };
 
 export default function TransactionsPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
 
-  const filtered = mockTransactions.filter((tx) => {
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchTransactions = async () => {
+      const { data } = await supabase
+        .from("mc_transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        setTransactions(
+          data.map((tx) => ({ ...tx, amount: Number(tx.amount) }))
+        );
+      }
+      setLoading(false);
+    };
+
+    fetchTransactions();
+  }, [user, supabase]);
+
+  const filtered = transactions.filter((tx) => {
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
-    if (statusFilter !== "all" && tx.status !== statusFilter) return false;
-    if (search && !tx.reference.toLowerCase().includes(search.toLowerCase()) && !tx.amount.toString().includes(search)) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (
+        !tx.description?.toLowerCase().includes(s) &&
+        !tx.amount.toString().includes(s) &&
+        !tx.reference_id?.toLowerCase().includes(s)
+      ) return false;
+    }
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -60,7 +102,7 @@ export default function TransactionsPage() {
         <CardContent className="flex flex-wrap items-center gap-4 p-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
-            <Input placeholder="Search by reference or amount..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Search by description or amount..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <div className="flex gap-2">
             {["all", "deposit", "withdrawal", "investment", "profit"].map((t) => (
@@ -86,7 +128,7 @@ export default function TransactionsPage() {
               <thead>
                 <tr className="border-b border-surface-200 dark:border-surface-700">
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Reference</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Description</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Amount</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Currency</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Status</th>
@@ -94,22 +136,28 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                {filtered.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                    <td className="px-6 py-4">
-                      <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", typeColors[tx.type])}>
-                        {tx.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{tx.reference}</td>
-                    <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">
-                      {tx.type === "withdrawal" || tx.type === "investment" ? "-" : "+"}{formatCurrency(tx.amount)}
-                    </td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{tx.currency}</td>
-                    <td className="px-6 py-4"><Badge variant={statusVariant[tx.status] || "default"}>{tx.status}</Badge></td>
-                    <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(tx.date).toLocaleDateString()}</td>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-surface-400">No transactions found</td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
+                      <td className="px-6 py-4">
+                        <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize", typeColors[tx.type] || typeColors.deposit)}>
+                          {tx.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{tx.description || "-"}</td>
+                      <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">
+                        {tx.type === "withdrawal" || tx.type === "investment" ? "-" : "+"}{formatCurrency(tx.amount)}
+                      </td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{tx.currency}</td>
+                      <td className="px-6 py-4"><Badge variant={statusVariant[tx.status] || "default"}>{tx.status}</Badge></td>
+                      <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(tx.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

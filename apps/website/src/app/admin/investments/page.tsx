@@ -1,26 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Search, TrendingUp, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
+import { Search, TrendingUp, DollarSign, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
-const mockInvestments = [
-  { id: "1", user: "John Doe", email: "john@example.com", plan: "Growth Plan", amount: 10000, currentValue: 11500, status: "active", startDate: "2026-07-01" },
-  { id: "2", user: "Sarah Smith", email: "sarah@example.com", plan: "Starter Plan", amount: 5000, currentValue: 5250, status: "active", startDate: "2026-07-15" },
-  { id: "3", user: "Mike Johnson", email: "mike@example.com", plan: "Professional", amount: 25000, currentValue: 28750, status: "active", startDate: "2026-06-01" },
-  { id: "4", user: "John Doe", email: "john@example.com", plan: "Growth Plan", amount: 7500, currentValue: 8100, status: "completed", startDate: "2026-03-01" },
-  { id: "5", user: "Alex Brown", email: "alex@example.com", plan: "Starter Plan", amount: 1000, currentValue: 1000, status: "pending", startDate: "2026-07-25" },
-];
+interface Investment {
+  id: string;
+  user_name: string;
+  user_id: string;
+  plan_name: string;
+  amount: number;
+  current_value: number;
+  status: string;
+  start_date: string;
+}
 
-const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = { active: "default", completed: "success", pending: "warning", cancelled: "destructive" };
+const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = { active: "default", completed: "success", pending: "warning", cancelled: "destructive", paused: "warning" };
 
 export default function AdminInvestmentsPage() {
+  const supabase = createClient();
+  const [investments, setInvestments] = useState<Investment[]>([]);
   const [search, setSearch] = useState("");
-  const filtered = mockInvestments.filter((i) => !search || i.user.toLowerCase().includes(search.toLowerCase()) || i.plan.toLowerCase().includes(search.toLowerCase()));
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchInvestments = async () => {
+      const { data, error } = await supabase
+        .from("mc_investments")
+        .select("*, mc_investment_plans(name)")
+        .order("created_at", { ascending: false });
+
+      if (error || !data) {
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user profiles for all unique user_ids
+      const userIds = [...new Set(data.map((inv) => inv.user_id))];
+      const { data: profiles } = await supabase
+        .from("mc_profiles")
+        .select("id, full_name")
+        .in("id", userIds);
+
+      const nameMap: Record<string, string> = {};
+      if (profiles) {
+        profiles.forEach((p) => { nameMap[p.id] = p.full_name || p.id.slice(0, 8); });
+      }
+
+      const rows: Investment[] = data.map((inv) => ({
+        id: inv.id,
+        user_name: nameMap[inv.user_id] || inv.user_id.slice(0, 8),
+        user_id: inv.user_id,
+        plan_name: inv.mc_investment_plans?.name || "Unknown Plan",
+        amount: Number(inv.amount),
+        current_value: Number(inv.current_value),
+        status: inv.status,
+        start_date: inv.start_date,
+      }));
+
+      setInvestments(rows);
+      setLoading(false);
+    };
+
+    fetchInvestments();
+  }, []);
+
+  const filtered = investments.filter((i) => !search || i.user_name.toLowerCase().includes(search.toLowerCase()) || i.plan_name.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -59,22 +117,26 @@ export default function AdminInvestmentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
-                {filtered.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                    <td className="px-6 py-4"><div><p className="font-medium text-surface-900 dark:text-white">{inv.user}</p><p className="text-xs text-surface-500">{inv.email}</p></div></td>
-                    <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{inv.plan}</td>
-                    <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(inv.amount)}</td>
-                    <td className="px-6 py-4 font-medium text-success-600">{formatCurrency(inv.currentValue)}</td>
-                    <td className="px-6 py-4 text-sm text-success-600">+{formatCurrency(inv.currentValue - inv.amount)}</td>
-                    <td className="px-6 py-4"><Badge variant={statusVariant[inv.status]}>{inv.status}</Badge></td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm"><DollarSign className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm"><TrendingUp className="h-4 w-4" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-surface-500">No investments found</td></tr>
+                ) : (
+                  filtered.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
+                      <td className="px-6 py-4"><p className="font-medium text-surface-900 dark:text-white">{inv.user_name}</p></td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{inv.plan_name}</td>
+                      <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(inv.amount)}</td>
+                      <td className="px-6 py-4 font-medium text-success-600">{formatCurrency(inv.current_value)}</td>
+                      <td className="px-6 py-4 text-sm text-success-600">+{formatCurrency(inv.current_value - inv.amount)}</td>
+                      <td className="px-6 py-4"><Badge variant={statusVariant[inv.status] || "default"}>{inv.status}</Badge></td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm"><DollarSign className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm"><TrendingUp className="h-4 w-4" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
