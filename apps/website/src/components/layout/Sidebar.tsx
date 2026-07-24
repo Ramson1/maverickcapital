@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -60,8 +61,15 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { signOut } = useAuth();
   const isAdmin = pathname.startsWith("/admin");
   const navItems = isAdmin ? adminNavigation : navigation;
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+  };
 
   return (
     <>
@@ -159,7 +167,10 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
               </div>
             </Link>
           )}
-          <button className="flex w-full items-center gap-3 rounded-lg border border-danger-500/10 bg-danger-50 px-3 py-2.5 text-sm font-medium text-danger-600 transition-all hover:border-danger-500/20 hover:bg-danger-100 dark:border-danger-500/20 dark:bg-danger-500/5 dark:text-danger-500 dark:hover:border-danger-500/30 dark:hover:bg-danger-500/10">
+          <button
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-3 rounded-lg border border-danger-500/10 bg-danger-50 px-3 py-2.5 text-sm font-medium text-danger-600 transition-all hover:border-danger-500/20 hover:bg-danger-100 dark:border-danger-500/20 dark:bg-danger-500/5 dark:text-danger-500 dark:hover:border-danger-500/30 dark:hover:bg-danger-500/10"
+          >
             <LogOut className="h-[18px] w-[18px] shrink-0" />
             {!collapsed && <span>Sign Out</span>}
           </button>

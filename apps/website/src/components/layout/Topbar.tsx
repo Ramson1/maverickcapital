@@ -1,9 +1,13 @@
 "use client";
 
-import { Bell, Moon, Sun, Search, Menu } from "lucide-react";
+import { Bell, Moon, Sun, Search, Menu, Shield } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/AuthProvider";
+import { createClient } from "@/lib/supabase/client";
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -11,7 +15,70 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
   const [searchFocused, setSearchFocused] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [initials, setInitials] = useState("U");
+  const [displayName, setDisplayName] = useState("");
+
+  // Fetch user profile and roles
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const fetchProfile = async () => {
+      const supabase = createClient();
+
+      // Get display name
+      const { data: profile } = await supabase
+        .from("mc_profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.full_name) {
+        setDisplayName(profile.full_name);
+        const parts = profile.full_name.split(" ");
+        setInitials(
+          parts.length > 1
+            ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+            : parts[0].slice(0, 2).toUpperCase()
+        );
+      } else {
+        setDisplayName(user.email || "");
+        setInitials((user.email || "U").slice(0, 2).toUpperCase());
+      }
+
+      // Check admin role
+      const { data: roleData } = await supabase
+        .from("mc_user_roles")
+        .select("mc_roles(name)")
+        .eq("user_id", user.id);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const roles = (roleData || []).flatMap((r: any) =>
+        Array.isArray(r.mc_roles) ? r.mc_roles : [r.mc_roles]
+      ).filter(Boolean);
+
+      setIsAdmin(
+        roles.some((r: { name: string }) =>
+          ["super_admin", "admin", "moderator"].includes(r.name)
+        )
+      );
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  const isOnAdmin = pathname.startsWith("/admin");
+
+  const handleSwitchView = () => {
+    router.push(isOnAdmin ? "/dashboard" : "/admin");
+  };
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-surface-200 bg-white/80 px-4 backdrop-blur-xl dark:border-surface-800 dark:bg-surface-900/80 sm:px-6">
@@ -51,6 +118,24 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Admin toggle - only visible for admin users */}
+        {isAdmin && (
+          <button
+            onClick={handleSwitchView}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm",
+              isOnAdmin
+                ? "bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
+                : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
+            )}
+          >
+            <Shield className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {isOnAdmin ? "User View" : "Admin View"}
+            </span>
+          </button>
+        )}
+
         {/* Theme toggle */}
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -74,15 +159,22 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         <div className="mx-1 h-6 w-px bg-surface-200 sm:mx-2 dark:bg-surface-700" />
 
         {/* User menu */}
-        <button className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-100 sm:gap-3 sm:px-2 dark:hover:bg-surface-800">
+        <Link
+          href="/dashboard/profile"
+          className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-surface-100 sm:gap-3 sm:px-2 dark:hover:bg-surface-800"
+        >
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 dark:bg-brand-500/20 dark:text-brand-400">
-            JD
+            {initials}
           </div>
           <div className="hidden text-left sm:block">
-            <p className="text-sm font-medium text-surface-900 dark:text-white">John Doe</p>
-            <p className="text-[11px] text-surface-500 dark:text-surface-400">john@example.com</p>
+            <p className="text-sm font-medium text-surface-900 dark:text-white">
+              {displayName || "User"}
+            </p>
+            <p className="text-[11px] text-surface-500 dark:text-surface-400">
+              {user?.email || ""}
+            </p>
           </div>
-        </button>
+        </Link>
       </div>
     </header>
   );
