@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { TrendingUp, Lock, Star, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { SignalsSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Signal {
   id: string;
@@ -67,11 +68,7 @@ export default function SignalsPage() {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <SignalsSkeleton />;
   }
 
   return (

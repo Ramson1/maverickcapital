@@ -27,7 +27,6 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Investments", href: "/dashboard/investments", icon: TrendingUp },
   { name: "Wallet", href: "/dashboard/wallet", icon: Wallet },
   { name: "Transactions", href: "/dashboard/transactions", icon: ArrowLeftRight },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },

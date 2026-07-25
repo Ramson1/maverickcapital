@@ -17,6 +17,7 @@ import {
   Gift,
   TrendingUp,
 } from "lucide-react";
+import { ReferralSkeleton } from "@/components/ui/PageSkeletons";
 
 export default function ReferralPage() {
   const { referralCode, totalReferrals, totalCommission, pendingCommission, referrals, loading, refetch } = useReferral();
@@ -59,11 +60,7 @@ export default function ReferralPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <ReferralSkeleton />;
   }
 
   return (

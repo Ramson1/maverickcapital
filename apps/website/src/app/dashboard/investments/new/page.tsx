@@ -10,6 +10,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { GenericPageSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Plan {
   id: string;
@@ -105,11 +106,7 @@ export default function NewInvestmentPage() {
   };
 
   if (fetchingPlans) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <GenericPageSkeleton />;
   }
 
   return (

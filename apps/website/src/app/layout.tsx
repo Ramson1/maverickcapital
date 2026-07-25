@@ -6,6 +6,8 @@ import { Footer } from "@/components/layout/Footer";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { LoadingProvider } from "@/providers/LoadingProvider";
+import { Web3Providers } from "@/providers/Web3Providers";
 import { Toaster } from "@/components/ui/toaster";
 import { DashboardLayoutWrapper } from "@/components/layout/DashboardLayoutWrapper";
 
@@ -69,12 +71,16 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <ToastProvider>
-            <AuthProvider>
-              <DashboardLayoutWrapper>
-                {children}
-              </DashboardLayoutWrapper>
-              <Toaster />
-            </AuthProvider>
+            <Web3Providers>
+              <AuthProvider>
+                <LoadingProvider>
+                  <DashboardLayoutWrapper>
+                    {children}
+                  </DashboardLayoutWrapper>
+                  <Toaster />
+                </LoadingProvider>
+              </AuthProvider>
+            </Web3Providers>
           </ToastProvider>
         </ThemeProvider>
       </body>

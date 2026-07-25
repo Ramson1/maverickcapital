@@ -16,8 +16,6 @@ interface TopbarProps {
 // Dashboard routes for search
 const dashboardRoutes = [
   { path: "/dashboard", label: "Dashboard", description: "Overview & stats" },
-  { path: "/dashboard/investments", label: "Investments", description: "View your investments" },
-  { path: "/dashboard/investments/new", label: "New Investment", description: "Create new investment" },
   { path: "/dashboard/wallet", label: "Wallet", description: "Manage your wallets" },
   { path: "/dashboard/deposits", label: "Deposits", description: "View deposits" },
   { path: "/dashboard/withdrawals", label: "Withdrawals", description: "View withdrawals" },

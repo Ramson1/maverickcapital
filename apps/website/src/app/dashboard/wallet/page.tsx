@@ -9,6 +9,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { Wallet, ArrowUpRight, ArrowDownRight, Copy, Plus, Trash2, ExternalLink, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { WalletSkeleton } from "@/components/ui/PageSkeletons";
 
 interface WalletItem {
   id: string;
@@ -118,11 +119,7 @@ export default function WalletPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <WalletSkeleton />;
   }
 
   return (

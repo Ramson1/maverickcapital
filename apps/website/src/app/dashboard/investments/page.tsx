@@ -9,6 +9,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { TrendingUp, Plus, Clock, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Investment {
   id: string;
@@ -68,11 +69,7 @@ export default function InvestmentsPage() {
   const totalProfit = investments.reduce((s, i) => s + (i.current_value - i.amount), 0);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <TablePageSkeleton />;
   }
 
   return (

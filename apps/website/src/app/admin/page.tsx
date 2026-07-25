@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Users, DollarSign, TrendingUp, ArrowUpRight, Clock, AlertCircle, Eye, Shield, Activity, Loader2, Lock, Save, CheckCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AdminDashboardSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Stats {
   totalUsers: number;
@@ -252,11 +253,7 @@ export default function AdminDashboardPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <AdminDashboardSkeleton />;
   }
 
   if (!stats) return null;

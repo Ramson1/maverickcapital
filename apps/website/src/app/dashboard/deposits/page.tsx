@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Plus, Search, Download, Loader2, Lock, AlertTriangle } from "lucide-react";
+import { Plus, Search, Download, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useHardCap } from "@/hooks/useHardCap";
+import { WalletSection } from "@/components/web3/WalletButton";
+import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Deposit {
   id: string;
@@ -32,7 +34,7 @@ const statusVariant: Record<string, "success" | "warning" | "destructive" | "def
 export default function DepositsPage() {
   const { user } = useAuth();
   const supabase = createClient();
-  const { isFull, hardCap, totalRaised } = useHardCap();
+  const { isFull, hardCap } = useHardCap();
 
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [search, setSearch] = useState("");
@@ -67,11 +69,7 @@ export default function DepositsPage() {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <TablePageSkeleton />;
   }
 
   return (
@@ -81,19 +79,9 @@ export default function DepositsPage() {
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Deposits</h1>
           <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">View and manage your deposit history</p>
         </div>
-        <Button disabled={isFull}>
-          {isFull ? (
-            <>
-              <Lock className="mr-2 h-4 w-4" />
-              Deposits Closed
-            </>
-          ) : (
-            <>
-              <Plus className="mr-2 h-4 w-4" />
-              New Deposit
-            </>
-          )}
-        </Button>
+        <div className="flex items-center gap-3">
+          <WalletSection disabled={isFull} disabledLabel="Deposits Closed" />
+        </div>
       </div>
 
       {isFull && (

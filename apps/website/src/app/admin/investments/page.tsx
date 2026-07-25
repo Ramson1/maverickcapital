@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Search, TrendingUp, DollarSign, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Investment {
   id: string;
@@ -73,11 +74,7 @@ export default function AdminInvestmentsPage() {
   const filtered = investments.filter((i) => !search || i.user_name.toLowerCase().includes(search.toLowerCase()) || i.plan_name.toLowerCase().includes(search.toLowerCase()));
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <TablePageSkeleton />;
   }
 
   return (

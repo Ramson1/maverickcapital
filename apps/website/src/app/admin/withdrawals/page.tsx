@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, cn } from "@/lib/utils";
 import { CheckCircle, XCircle, Eye, Send, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Withdrawal {
   id: string;
@@ -83,11 +84,7 @@ export default function AdminWithdrawalsPage() {
   const filtered = withdrawals.filter((w) => statusFilter === "all" || w.status === statusFilter);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <TablePageSkeleton />;
   }
 
   return (

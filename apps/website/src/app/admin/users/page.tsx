@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Search, Download, Eye, Edit, Ban, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
 interface UserRow {
   id: string;
@@ -94,11 +95,7 @@ export default function AdminUsersPage() {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <TablePageSkeleton />;
   }
 
   return (

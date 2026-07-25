@@ -19,6 +19,8 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useHardCap } from "@/hooks/useHardCap";
+import { WalletSection } from "@/components/web3/WalletButton";
+import { DashboardSkeleton } from "@/components/ui/PageSkeletons";
 
 interface StatItem {
   name: string;
@@ -43,6 +45,9 @@ export function DashboardContent() {
   const { user } = useAuth();
   const supabase = createClient();
   const { hardCap, totalRaised, percentage, isFull, loading: hardCapLoading } = useHardCap();
+  
+  // Portfolio chart period state
+  const [chartPeriod, setChartPeriod] = useState<"7D" | "30D" | "90D" | "1Y">("30D");
 
   const [stats, setStats] = useState<StatItem[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
@@ -78,7 +83,6 @@ export function DashboardContent() {
         const totalInvestment = Number(profile?.total_investment || 0);
         const totalProfit = Number(profile?.total_profit || 0);
         const walletBalance = Number(profile?.wallet_balance || 0);
-        const activeCountNum = activeCount || 0;
 
         setStats([
           {
@@ -105,15 +109,6 @@ export function DashboardContent() {
             color: "text-accent-600 dark:text-accent-400",
             bgColor: "bg-accent-50 dark:bg-accent-500/10",
           },
-          {
-            name: "Active Investments",
-            value: activeCountNum,
-            change: 0,
-            icon: Clock,
-            color: "text-brand-600 dark:text-brand-400",
-            bgColor: "bg-brand-50 dark:bg-brand-500/10",
-            isCount: true,
-          },
         ]);
 
         setRecentTransactions(
@@ -137,11 +132,7 @@ export function DashboardContent() {
   }, [user, supabase]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -155,18 +146,7 @@ export function DashboardContent() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/deposits">
-            <button disabled={isFull} className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-50 disabled:opacity-50 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700">
-              {isFull ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              {isFull ? "Deposits Closed" : "New Deposit"}
-            </button>
-          </Link>
-          <Link href="/dashboard/investments/new">
-            <button disabled={isFull} className="flex items-center gap-2 rounded-lg gradient-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
-              <TrendingUp className="h-4 w-4" />
-              {isFull ? "Cap Reached" : "New Investment"}
-            </button>
-          </Link>
+          <WalletSection />
         </div>
       </div>
 
@@ -226,7 +206,7 @@ export function DashboardContent() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -257,15 +237,21 @@ export function DashboardContent() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-surface-900 dark:text-white">Portfolio Growth</h2>
-              <p className="text-sm text-surface-500 dark:text-surface-400">Last 30 days performance</p>
+              <p className="text-sm text-surface-500 dark:text-surface-400">
+                {chartPeriod === "7D" && "Last 7 days performance"}
+                {chartPeriod === "30D" && "Last 30 days performance"}
+                {chartPeriod === "90D" && "Last 90 days performance"}
+                {chartPeriod === "1Y" && "Last year performance"}
+              </p>
             </div>
             <div className="flex gap-2">
-              {["7D", "30D", "90D", "1Y"].map((period) => (
+              {(["7D", "30D", "90D", "1Y"] as const).map((period) => (
                 <button
                   key={period}
+                  onClick={() => setChartPeriod(period)}
                   className={cn(
                     "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                    period === "30D"
+                    period === chartPeriod
                       ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
                       : "text-surface-500 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
                   )}
@@ -341,11 +327,10 @@ export function DashboardContent() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {[
-          { title: "Start New Investment", desc: "Choose from our investment plans", icon: TrendingUp, href: "/dashboard/investments/new" },
-          { title: "Make a Deposit", desc: "Fund your wallet with crypto", icon: Wallet, href: "/dashboard/deposits" },
-          { title: "View Analytics", desc: "Track your performance", icon: ArrowRight, href: "/dashboard/analytics" },
+          { title: "View Transactions", desc: "See your deposit & bonus history", icon: ArrowRight, href: "/dashboard/transactions" },
+          { title: "Referral Program", desc: "Earn 5% by referring friends", icon: TrendingUp, href: "/dashboard/referrals" },
         ].map((action) => {
           const Icon = action.icon;
           return (

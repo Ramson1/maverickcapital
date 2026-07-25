@@ -14,5 +14,17 @@
     "build:dashboard": "npm run build --workspace=apps/dashboard",
     "lint": "npm run lint --workspace=apps/website",
     "lint:dashboard": "npm run lint --workspace=apps/dashboard"
+  },
+  "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@tanstack/react-query": "^5.101.4",
+    "@walletconnect/ethereum-provider": "^2.23.10",
+    "@x402/core": "^2.19.0",
+    "@x402/evm": "^2.19.0",
+    "@x402/svm": "^2.19.0",
+    "moralis": "^2.27.2",
+    "tronweb": "^6.4.0",
+    "viem": "^2.55.8",
+    "wagmi": "^3.7.4"
   }
 }

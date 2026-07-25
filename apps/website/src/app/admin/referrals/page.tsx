@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 import {
   Users,
   DollarSign,
@@ -133,11 +134,7 @@ export default function AdminReferralsPage() {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-      </div>
-    );
+    return <TablePageSkeleton />;
   }
 
   const statCards = stats
