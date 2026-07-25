@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Users, DollarSign, TrendingUp, ArrowUpRight, Clock, AlertCircle, Eye, Shield, Activity, Loader2 } from "lucide-react";
+import { Users, DollarSign, TrendingUp, ArrowUpRight, Clock, AlertCircle, Eye, Shield, Activity, Loader2, Lock, Save, CheckCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Stats {
@@ -41,6 +41,14 @@ export default function AdminDashboardPage() {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Hard cap state
+  const [hardCap, setHardCap] = useState(500000);
+  const [totalRaised, setTotalRaised] = useState(0);
+  const [editingCap, setEditingCap] = useState(false);
+  const [newCap, setNewCap] = useState("");
+  const [savingCap, setSavingCap] = useState(false);
+  const [capSaved, setCapSaved] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -194,10 +202,54 @@ export default function AdminDashboardPage() {
       }
       setPendingItems(pending);
       setLoading(false);
+
+      // Fetch hard cap data
+      const { data: config } = await supabase
+        .from("mc_system_config")
+        .select("value")
+        .eq("key", "hard_cap")
+        .single();
+      if (config) {
+        setHardCap(config.value.amount ?? 500000);
+      }
+      // Total raised from approved deposits
+      const { data: approvedDeps } = await supabase
+        .from("mc_deposits")
+        .select("amount")
+        .eq("status", "approved");
+      const raised = approvedDeps?.reduce((s, d) => s + Number(d.amount), 0) || 0;
+      if (raised === 0) {
+        const { data: profiles } = await supabase.from("mc_profiles").select("total_investment");
+        setTotalRaised(profiles?.reduce((s, p) => s + Number(p.total_investment || 0), 0) || 0);
+      } else {
+        setTotalRaised(raised);
+      }
     };
 
     fetchStats();
   }, []);
+
+  const handleSaveCap = async () => {
+    const amount = parseFloat(newCap.replace(/[^0-9.]/g, ""));
+    if (isNaN(amount) || amount <= 0) return;
+    setSavingCap(true);
+    try {
+      const { error } = await supabase
+        .from("mc_system_config")
+        .update({ value: { amount, currency: "USDT", enabled: true }, updated_at: new Date().toISOString() })
+        .eq("key", "hard_cap");
+      if (!error) {
+        setHardCap(amount);
+        setEditingCap(false);
+        setCapSaved(true);
+        setTimeout(() => setCapSaved(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to update hard cap:", err);
+    } finally {
+      setSavingCap(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -253,6 +305,97 @@ export default function AdminDashboardPage() {
           );
         })}
       </div>
+
+      {/* Hard Cap Management */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+                <Lock className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Platform Hard Cap</h3>
+                <p className="text-xs text-surface-500 dark:text-surface-400">
+                  {totalRaised >= hardCap ? "Cap reached — deposits disabled" : "Maximum capital raised limit"}
+                </p>
+              </div>
+            </div>
+            {!editingCap && (
+              <button
+                onClick={() => { setNewCap(hardCap.toString()); setEditingCap(true); }}
+                className="rounded-lg border border-surface-200 px-3 py-1.5 text-xs font-medium text-surface-600 transition-colors hover:bg-surface-50 dark:border-surface-700 dark:text-surface-400 dark:hover:bg-surface-800"
+              >
+                Edit Cap
+              </button>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-surface-500 dark:text-surface-400">Capital Raised</span>
+              <span className="font-semibold text-surface-900 dark:text-white">
+                {formatCurrency(totalRaised)} / {formatCurrency(hardCap)}
+              </span>
+            </div>
+            <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-surface-100 dark:bg-surface-800">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  (totalRaised / hardCap) * 100 >= 90
+                    ? "bg-danger-500"
+                    : (totalRaised / hardCap) * 100 >= 70
+                      ? "bg-warning-500"
+                      : "bg-brand-500"
+                )}
+                style={{ width: `${Math.min((totalRaised / hardCap) * 100, 100)}%` }}
+              />
+            </div>
+            <div className="mt-1 flex items-center justify-between text-xs text-surface-400">
+              <span>{((totalRaised / hardCap) * 100).toFixed(1)}% filled</span>
+              <span>{formatCurrency(hardCap - totalRaised)} remaining</span>
+            </div>
+          </div>
+
+          {/* Edit form */}
+          {editingCap && (
+            <div className="mt-4 flex items-end gap-3 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">New Hard Cap Amount ($)</label>
+                <input
+                  type="text"
+                  value={newCap}
+                  onChange={(e) => setNewCap(e.target.value)}
+                  className="w-full rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-900 dark:text-white"
+                  placeholder="500000"
+                />
+              </div>
+              <button
+                onClick={handleSaveCap}
+                disabled={savingCap}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {savingCap ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save
+              </button>
+              <button
+                onClick={() => setEditingCap(false)}
+                className="rounded-lg border border-surface-200 px-3 py-2 text-sm text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-700 dark:text-surface-400 dark:hover:bg-surface-800"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {capSaved && (
+            <div className="mt-3 flex items-center gap-2 text-xs font-medium text-success-600 dark:text-success-400">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Hard cap updated successfully
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Recent Activity */}

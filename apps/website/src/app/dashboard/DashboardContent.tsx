@@ -12,10 +12,13 @@ import {
   ArrowRight,
   Plus,
   Loader2,
+  Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { useHardCap } from "@/hooks/useHardCap";
 
 interface StatItem {
   name: string;
@@ -39,6 +42,7 @@ interface Transaction {
 export function DashboardContent() {
   const { user } = useAuth();
   const supabase = createClient();
+  const { hardCap, totalRaised, percentage, isFull, loading: hardCapLoading } = useHardCap();
 
   const [stats, setStats] = useState<StatItem[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
@@ -152,18 +156,73 @@ export function DashboardContent() {
         </div>
         <div className="flex items-center gap-3">
           <Link href="/dashboard/deposits">
-            <button className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-50 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700">
-              <Plus className="h-4 w-4" />
-              New Deposit
+            <button disabled={isFull} className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-50 disabled:opacity-50 dark:border-surface-700 dark:bg-surface-800 dark:text-surface-300 dark:hover:bg-surface-700">
+              {isFull ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isFull ? "Deposits Closed" : "New Deposit"}
             </button>
           </Link>
           <Link href="/dashboard/investments/new">
-            <button className="flex items-center gap-2 rounded-lg gradient-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90">
+            <button disabled={isFull} className="flex items-center gap-2 rounded-lg gradient-brand px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-50">
               <TrendingUp className="h-4 w-4" />
-              New Investment
+              {isFull ? "Cap Reached" : "New Investment"}
             </button>
           </Link>
         </div>
+      </div>
+
+      {/* Hard Cap Progress Bar */}
+      <div className="rounded-xl border border-surface-200 bg-white p-5 dark:border-surface-800 dark:bg-surface-900">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+              <Lock className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Platform Hard Cap</h3>
+              <p className="text-xs text-surface-500 dark:text-surface-400">
+                {isFull ? "Cap reached — deposits are disabled" : "Total capital raised across all investors"}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold text-surface-900 dark:text-white">
+              {hardCapLoading ? "..." : `${formatCurrency(totalRaised)}`}
+            </p>
+            <p className="text-xs text-surface-500 dark:text-surface-400">
+              of {formatCurrency(hardCap)}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 h-4 w-full overflow-hidden rounded-full bg-surface-100 dark:bg-surface-800">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-700",
+              percentage >= 90
+                ? "bg-danger-500"
+                : percentage >= 70
+                  ? "bg-warning-500"
+                  : "bg-brand-500"
+            )}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <span className={cn(
+            "font-medium",
+            percentage >= 90 ? "text-danger-600 dark:text-danger-400" : "text-surface-500 dark:text-surface-400"
+          )}>
+            {percentage.toFixed(1)}% filled
+          </span>
+          <span className="text-surface-500 dark:text-surface-400">
+            {hardCapLoading ? "" : `${formatCurrency(hardCap - totalRaised)} remaining`}
+          </span>
+        </div>
+        {isFull && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-danger-50 px-3 py-2 text-xs font-medium text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Hard cap has been reached. New deposits are currently disabled.
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}

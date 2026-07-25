@@ -48,7 +48,7 @@ export function OrganizationSchema() {
           "itemOffered": {
             "@type": "Service",
             "name": "Standard Plan",
-            "description": "3-month capital lock with 10% return, minimum $50 investment, profits withdrawable anytime"
+            "description": "1-month capital lock with 10% return, minimum $50 investment, profits withdrawable anytime"
           }
         },
         {
@@ -56,7 +56,7 @@ export function OrganizationSchema() {
           "itemOffered": {
             "@type": "Service",
             "name": "Premium Plan",
-            "description": "6-month capital lock with 15% return, minimum $200 investment, profits withdrawable anytime"
+            "description": "3-month capital lock with 12% return, minimum $50 investment, profits withdrawable anytime"
           }
         }
       ]

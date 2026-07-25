@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, Eye, EyeOff, Check, X } from "lucide-react";
+import { Loader2, Eye, EyeOff, Check, X, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuthLayout, AuthHeader } from "@/components/auth/AuthLayout";
 import { useToast } from "@/providers/ToastProvider";
@@ -25,16 +25,59 @@ function getPasswordStrength(password: string): { score: number; label: string; 
 }
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-brand-600" /></div>}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { error: showError, success: showSuccess } = useToast();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Check for referral code in URL on mount
+  useEffect(() => {
+    const refFromUrl = searchParams.get("ref");
+    if (refFromUrl) {
+      setReferralCode(refFromUrl.toUpperCase());
+      // Store in localStorage as backup
+      localStorage.setItem("referral_code", refFromUrl.toUpperCase());
+    } else {
+      // Check localStorage for previously stored referral code
+      const stored = localStorage.getItem("referral_code");
+      if (stored) setReferralCode(stored);
+    }
+  }, [searchParams]);
+
+  // Validate referral code when it changes
+  useEffect(() => {
+    if (!referralCode || referralCode.length < 6) {
+      setReferralValid(null);
+      return;
+    }
+    const validate = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("mc_profiles")
+        .select("id")
+        .eq("referral_code", referralCode)
+        .single();
+      setReferralValid(!!data);
+    };
+    validate();
+  }, [referralCode]);
 
   const passwordStrength = getPasswordStrength(password);
   const passwordsMatch = password.length > 0 && password === confirmPassword;
@@ -49,10 +92,18 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient();
+
+      // Store referral code in metadata for profile creation
+      const userMetadata: Record<string, string> = { full_name: fullName };
+      if (referralCode && referralValid) {
+        userMetadata.referral_code = referralCode;
+        localStorage.setItem("referral_code", referralCode);
+      }
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName } },
+        options: { data: userMetadata },
       });
 
       if (error) throw error;
@@ -197,6 +248,40 @@ export default function RegisterPage() {
             {" "}and{" "}
             <Link href="/privacy" className="font-medium text-brand-600 hover:underline">Privacy Policy</Link>
           </label>
+        </div>
+
+        {/* Referral Code */}
+        <div>
+          <label htmlFor="referralCode" className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
+            <Users className="h-3.5 w-3.5" />
+            Referral Code <span className="text-slate-400">(optional)</span>
+          </label>
+          <input
+            id="referralCode"
+            type="text"
+            placeholder="e.g. MC1A2B3C4D"
+            value={referralCode}
+            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+            disabled={loading}
+            className={cn(
+              "w-full rounded-lg border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:bg-white focus:ring-2 disabled:opacity-50",
+              referralValid === true
+                ? "border-success-500 focus:border-success-500 focus:ring-success-500/20"
+                : referralValid === false
+                  ? "border-danger-500 focus:border-danger-500 focus:ring-danger-500/20"
+                  : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/20"
+            )}
+          />
+          {referralValid === true && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-success-500">
+              <Check className="h-3 w-3" /> Valid referral code — you'll be linked to the referrer
+            </p>
+          )}
+          {referralValid === false && referralCode.length >= 6 && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-danger-500">
+              <X className="h-3 w-3" /> Invalid referral code
+            </p>
+          )}
         </div>
 
         {/* Submit */}

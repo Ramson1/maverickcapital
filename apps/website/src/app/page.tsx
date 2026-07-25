@@ -5,6 +5,7 @@ import { WhyChooseUs } from "@/components/sections/WhyChooseUs";
 import { ServicesSection } from "@/components/sections/ServicesSection";
 import { MarketsSection } from "@/components/sections/MarketsSection";
 import { PlansSection } from "@/components/sections/PlansSection";
+import { HardCapSection } from "@/components/sections/HardCapSection";
 import { TickerSection } from "@/components/sections/TickerSection";
 import { TestimonialsSection } from "@/components/sections/TestimonialsSection";
 import { FAQSection } from "@/components/sections/FAQSection";
@@ -26,6 +27,7 @@ export default function HomePage() {
       <ServicesSection />
       <MarketsSection />
       <PlansSection />
+      <HardCapSection />
       <TickerSection />
       <TestimonialsSection />
       <BlogSection />

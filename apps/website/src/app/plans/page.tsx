@@ -40,13 +40,13 @@ const tiers: Tier[] = [
   {
     name: "Standard",
     minInvestment: "$50",
-    lockPeriod: "3 months",
+    lockPeriod: "1 month",
     returnPct: "10%",
     icon: TrendingUp,
-    description: "Solid returns with a short-term capital lock for flexible investing",
+    description: "Quick returns with a short-term capital lock for flexible investing",
     features: [
       { text: "10% return on investment", included: true },
-      { text: "3-month capital lock period", included: true },
+      { text: "1-month capital lock period", included: true },
       { text: "Withdraw profits anytime (min $10)", included: true },
       { text: "Automated portfolio management", included: true },
       { text: "Weekly performance reports", included: true },
@@ -57,15 +57,15 @@ const tiers: Tier[] = [
   },
   {
     name: "Premium",
-    minInvestment: "$200",
-    lockPeriod: "6 months",
-    returnPct: "15%",
+    minInvestment: "$50",
+    lockPeriod: "3 months",
+    returnPct: "12%",
     icon: Shield,
     description: "Higher returns with a longer lock for committed investors",
     highlight: true,
     features: [
-      { text: "15% return on investment", included: true },
-      { text: "6-month capital lock period", included: true },
+      { text: "12% return on investment", included: true },
+      { text: "3-month capital lock period", included: true },
       { text: "Withdraw profits anytime (min $10)", included: true },
       { text: "Advanced portfolio strategy", included: true },
       { text: "Daily performance reports", included: true },
@@ -78,9 +78,9 @@ const tiers: Tier[] = [
 
 /* Comparison table data */
 const comparisonFeatures = [
-  { label: "Min. Investment", values: ["$50", "$200"] },
-  { label: "Return on Investment", values: ["10%", "15%"] },
-  { label: "Capital Lock Period", values: ["3 months", "6 months"] },
+  { label: "Min. Investment", values: ["$50", "$50"] },
+  { label: "Return on Investment", values: ["10%", "12%"] },
+  { label: "Capital Lock Period", values: ["1 month", "3 months"] },
   { label: "Profit Withdrawal", values: ["Anytime (min $10)", "Anytime (min $10)"] },
   { label: "Portfolio Management", values: ["Automated", "Advanced Strategy"] },
   { label: "Support Level", values: ["Email", "24/7 Priority"] },
@@ -99,7 +99,7 @@ const faqItems: FAQItem[] = [
   {
     question: "How does the capital lock period work?",
     answer:
-      "When you invest, your capital is locked for the chosen term (3 months for Standard or 6 months for Premium). During this period, your investment is actively managed by our team. At the end of the lock period, you can withdraw your investment plus returns, or choose to reinvest. Early withdrawal may be subject to penalties as outlined in your plan agreement.",
+      "When you invest, your capital is locked for the chosen term (1 month for Standard or 3 months for Premium). During this period, your investment is actively managed by our team. At the end of the lock period, you can withdraw your investment plus returns, or choose to reinvest. Early withdrawal may be subject to penalties as outlined in your plan agreement.",
   },
   {
     question: "Can I withdraw my profits before the lock period ends?",
@@ -119,7 +119,7 @@ const faqItems: FAQItem[] = [
   {
     question: "What is the minimum investment?",
     answer:
-      "The Standard plan requires a minimum investment of $50 with a 3-month lock period and 10% return. The Premium plan requires a minimum of $200 with a 6-month lock period and 15% return. While your capital is locked, you can withdraw your profits at any time with a minimum withdrawal of $10.",
+      "Both plans require a minimum investment of $50. The Standard plan offers 10% return with a 1-month lock period. The Premium plan offers 12% return with a 3-month lock period. While your capital is locked, you can withdraw your profits at any time with a minimum withdrawal of $10.",
   },
   {
     question: "Is my investment protected?",

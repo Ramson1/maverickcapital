@@ -14,7 +14,7 @@ interface TopbarProps {
 }
 
 // Dashboard routes for search
-const searchRoutes = [
+const dashboardRoutes = [
   { path: "/dashboard", label: "Dashboard", description: "Overview & stats" },
   { path: "/dashboard/investments", label: "Investments", description: "View your investments" },
   { path: "/dashboard/investments/new", label: "New Investment", description: "Create new investment" },
@@ -30,6 +30,23 @@ const searchRoutes = [
   { path: "/dashboard/subscriptions", label: "Subscriptions", description: "Manage subscriptions" },
   { path: "/dashboard/settings", label: "Settings", description: "Account settings" },
   { path: "/dashboard/analytics", label: "Analytics", description: "Performance analytics" },
+  { path: "/dashboard/referrals", label: "Referrals", description: "Affiliate program" },
+];
+
+// Admin routes for search
+const adminRoutes = [
+  { path: "/admin", label: "Admin Dashboard", description: "Platform overview" },
+  { path: "/admin/users", label: "Users", description: "Manage users" },
+  { path: "/admin/investments", label: "Investments", description: "Manage investments" },
+  { path: "/admin/deposits", label: "Deposits", description: "Manage deposits" },
+  { path: "/admin/withdrawals", label: "Withdrawals", description: "Manage withdrawals" },
+  { path: "/admin/referrals", label: "Referrals", description: "Referral management" },
+  { path: "/admin/signals", label: "Signals", description: "Manage signals" },
+  { path: "/admin/news", label: "News", description: "Manage news" },
+  { path: "/admin/support", label: "Support", description: "Support tickets" },
+  { path: "/admin/analytics", label: "Analytics", description: "Platform analytics" },
+  { path: "/admin/audit-logs", label: "Audit Logs", description: "System audit logs" },
+  { path: "/admin/cms", label: "CMS", description: "Content management" },
 ];
 
 export function Topbar({ onMenuClick }: TopbarProps) {
@@ -43,6 +60,9 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const [initials, setInitials] = useState("U");
   const [displayName, setDisplayName] = useState("");
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const isOnAdmin = pathname.startsWith("/admin");
+  const searchRoutes = isOnAdmin ? adminRoutes : dashboardRoutes;
 
   // Filter search results
   const searchResults = searchQuery.trim()
@@ -114,8 +134,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
     fetchProfile();
   }, [user]);
-
-  const isOnAdmin = pathname.startsWith("/admin");
 
   const handleSwitchView = () => {
     router.push(isOnAdmin ? "/dashboard" : "/admin");
@@ -221,14 +239,16 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <Moon className="hidden h-[18px] w-[18px] dark:block" />
         </button>
 
-        {/* News */}
-        <Link
-          href="/dashboard/news"
-          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
-          aria-label="News"
-        >
-          <Bell className="h-[18px] w-[18px]" />
-        </Link>
+        {/* News - only show on user dashboard */}
+        {!isOnAdmin && (
+          <Link
+            href="/dashboard/news"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-white"
+            aria-label="News"
+          >
+            <Bell className="h-[18px] w-[18px]" />
+          </Link>
+        )}
 
         {/* Divider */}
         <div className="mx-1 h-6 w-px bg-surface-200 sm:mx-2 dark:bg-surface-700" />

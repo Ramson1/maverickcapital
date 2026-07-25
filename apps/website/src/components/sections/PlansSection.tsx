@@ -24,13 +24,13 @@ const tiers: Tier[] = [
   {
     name: "Standard",
     minInvestment: "$50",
-    lockPeriod: "3 months",
+    lockPeriod: "1 month",
     returnPct: "10%",
     icon: TrendingUp,
-    description: "Solid returns with a short-term capital lock for flexible investing",
+    description: "Quick returns with a short-term capital lock for flexible investing",
     features: [
       { text: "10% return on investment", included: true },
-      { text: "3-month capital lock period", included: true },
+      { text: "1-month capital lock period", included: true },
       { text: "Withdraw profits anytime (min $10)", included: true },
       { text: "Automated portfolio management", included: true },
       { text: "Weekly performance reports", included: true },
@@ -41,15 +41,15 @@ const tiers: Tier[] = [
   },
   {
     name: "Premium",
-    minInvestment: "$200",
-    lockPeriod: "6 months",
-    returnPct: "15%",
+    minInvestment: "$50",
+    lockPeriod: "3 months",
+    returnPct: "12%",
     icon: Shield,
     description: "Higher returns with a longer lock for committed investors",
     highlight: true,
     features: [
-      { text: "15% return on investment", included: true },
-      { text: "6-month capital lock period", included: true },
+      { text: "12% return on investment", included: true },
+      { text: "3-month capital lock period", included: true },
       { text: "Withdraw profits anytime (min $10)", included: true },
       { text: "Advanced portfolio strategy", included: true },
       { text: "Daily performance reports", included: true },
@@ -105,7 +105,7 @@ export function PlansSection() {
           </p>
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-brand-50 px-6 py-3 text-base font-semibold text-brand-700">
             <Sparkles className="h-5 w-5" />
-            <span>Up to 15% returns on locked capital</span>
+            <span>Up to 12% returns on locked capital</span>
           </div>
         </motion.div>
 

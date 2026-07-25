@@ -22,6 +22,7 @@ import {
   LogOut,
   Shield,
   X,
+  Users,
 } from "lucide-react";
 
 const navigation = [
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Signals", href: "/dashboard/signals", icon: Signal },
   { name: "Subscriptions", href: "/dashboard/subscriptions", icon: CreditCard },
+  { name: "Referrals", href: "/dashboard/referrals", icon: Users },
   { name: "News", href: "/dashboard/news", icon: Newspaper },
   { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon },
   { name: "Profile", href: "/dashboard/profile", icon: User },
@@ -44,6 +46,7 @@ const adminNavigation = [
   { name: "Investments", href: "/admin/investments", icon: TrendingUp },
   { name: "Deposits", href: "/admin/deposits", icon: Wallet },
   { name: "Withdrawals", href: "/admin/withdrawals", icon: ArrowLeftRight },
+  { name: "Referrals", href: "/admin/referrals", icon: Users },
   { name: "Signals", href: "/admin/signals", icon: Signal },
   { name: "News", href: "/admin/news", icon: Newspaper },
   { name: "Support", href: "/admin/support", icon: HeadphonesIcon },
@@ -152,7 +155,7 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
 
         {/* Bottom section */}
         <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-800">
-          {!collapsed && (
+          {!collapsed && !isAdmin && (
             <Link
               href="/dashboard/support"
               onClick={onCloseMobile}
