@@ -27,7 +27,7 @@ const kycLabels: Record<string, { label: string; variant: "success" | "warning" 
 };
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -39,7 +39,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user) return;
+      if (!user) {
+        if (!authLoading) setLoading(false);
+        return;
+      }
       const { data, error } = await supabase
         .from("mc_profiles")
         .select("full_name, phone, kyc_status, membership_level, avatar_url, created_at")
@@ -55,7 +58,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [user]);
+  }, [user, authLoading]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -68,10 +71,19 @@ export default function ProfilePage() {
     setSaving(false);
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <AlertCircle className="h-12 w-12 text-surface-300 dark:text-surface-600" />
+        <p className="mt-4 text-sm text-surface-500">Please sign in to view your profile</p>
       </div>
     );
   }

@@ -23,9 +23,14 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const supabase = createClient();
 
+  const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState({ email: true, push: true, deposits: true, withdrawals: true, investments: true, signals: true, news: true });
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -93,7 +98,7 @@ export default function SettingsPage() {
               <button
                 key={t.value}
                 onClick={() => setTheme(t.value)}
-                className={`rounded-lg border-2 px-6 py-3 text-sm font-medium transition-colors ${theme === t.value ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400" : "border-surface-200 text-surface-600 hover:border-surface-300 dark:border-surface-700 dark:text-surface-400"}`}
+                className={`rounded-lg border-2 px-6 py-3 text-sm font-medium transition-colors ${mounted && theme === t.value ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400" : "border-surface-200 text-surface-600 hover:border-surface-300 dark:border-surface-700 dark:text-surface-400"}`}
               >
                 {t.label}
               </button>

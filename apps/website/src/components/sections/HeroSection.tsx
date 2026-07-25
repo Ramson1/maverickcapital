@@ -6,7 +6,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const trustBadges = [
-  { icon: Shield, label: "SEC Regulated" },
+  // { icon: Shield, label: "SEC Regulated" },
   { icon: Lock, label: "256-bit SSL" },
   { icon: Award, label: "Award Winning" },
   { icon: TrendingUp, label: "Proven Track Record" },
@@ -107,7 +107,7 @@ export function HeroSection() {
 
         {/* Trust badges */}
         <motion.div
-          className="mt-16 grid w-full max-w-3xl grid-cols-2 gap-4 md:grid-cols-4"
+          className="mt-16 flex w-full max-w-3xl flex-wrap justify-center gap-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}

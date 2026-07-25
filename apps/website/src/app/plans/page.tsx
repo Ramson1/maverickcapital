@@ -11,11 +11,8 @@ import {
   Home,
   ArrowRight,
   TrendingUp,
-  Clock,
-  DollarSign,
   Shield,
   MessageCircle,
-  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +28,8 @@ interface TierFeature {
 interface Tier {
   name: string;
   minInvestment: string;
+  lockPeriod: string;
+  returnPct: string;
   icon: React.ElementType;
   description: string;
   features: TierFeature[];
@@ -39,86 +38,55 @@ interface Tier {
 
 const tiers: Tier[] = [
   {
-    name: "Starter",
-    minInvestment: "$100",
+    name: "Standard",
+    minInvestment: "$50",
+    lockPeriod: "3 months",
+    returnPct: "10%",
     icon: TrendingUp,
-    description: "Begin your investment journey with professional management",
+    description: "Solid returns with a short-term capital lock for flexible investing",
     features: [
-      { text: "10% monthly returns", included: true },
+      { text: "10% return on investment", included: true },
+      { text: "3-month capital lock period", included: true },
+      { text: "Withdraw profits anytime (min $10)", included: true },
       { text: "Automated portfolio management", included: true },
       { text: "Weekly performance reports", included: true },
       { text: "Email support", included: true },
-      { text: "Basic risk management", included: true },
-      { text: "Monthly withdrawals", included: true },
       { text: "Dedicated account manager", included: false },
       { text: "Priority support", included: false },
     ],
   },
   {
-    name: "Growth",
-    minInvestment: "$1,000",
-    icon: Users,
-    description: "Enhanced service for serious investors",
-    features: [
-      { text: "10% monthly returns", included: true },
-      { text: "Advanced portfolio strategy", included: true },
-      { text: "Bi-weekly performance reports", included: true },
-      { text: "Priority email & chat support", included: true },
-      { text: "Enhanced risk controls", included: true },
-      { text: "Weekly withdrawals", included: true },
-      { text: "Market alerts & insights", included: true },
-      { text: "Dedicated account manager", included: false },
-    ],
-  },
-  {
-    name: "Professional",
-    minInvestment: "$10,000",
+    name: "Premium",
+    minInvestment: "$200",
+    lockPeriod: "6 months",
+    returnPct: "15%",
     icon: Shield,
-    description: "Institutional-grade management with dedicated support",
+    description: "Higher returns with a longer lock for committed investors",
     highlight: true,
     features: [
-      { text: "10% monthly returns", included: true },
-      { text: "Algorithmic trading strategies", included: true },
+      { text: "15% return on investment", included: true },
+      { text: "6-month capital lock period", included: true },
+      { text: "Withdraw profits anytime (min $10)", included: true },
+      { text: "Advanced portfolio strategy", included: true },
       { text: "Daily performance reports", included: true },
       { text: "24/7 priority support", included: true },
-      { text: "Institutional risk controls", included: true },
-      { text: "Daily withdrawals", included: true },
       { text: "Dedicated account manager", included: true },
       { text: "Exclusive market research", included: true },
-    ],
-  },
-  {
-    name: "Elite",
-    minInvestment: "$50,000",
-    icon: Sparkles,
-    description: "White-glove service for high-net-worth investors",
-    features: [
-      { text: "10% monthly returns", included: true },
-      { text: "Custom portfolio strategy", included: true },
-      { text: "Real-time performance dashboard", included: true },
-      { text: "24/7 VIP support line", included: true },
-      { text: "Hedge-fund grade risk models", included: true },
-      { text: "Instant withdrawals", included: true },
-      { text: "Private wealth advisor", included: true },
-      { text: "Quarterly strategy sessions", included: true },
     ],
   },
 ];
 
 /* Comparison table data */
 const comparisonFeatures = [
-  { label: "Min. Investment", values: ["$100", "$1,000", "$10,000", "$50,000"] },
-  { label: "Monthly Returns", values: ["10%", "10%", "10%", "10%"] },
-  { label: "Portfolio Management", values: ["Automated", "Advanced Strategy", "Algorithmic", "Custom Strategy"] },
-  { label: "Support Level", values: ["Email", "Priority Email & Chat", "24/7 Priority", "24/7 VIP"] },
-  { label: "Reports", values: ["Weekly", "Bi-weekly", "Daily", "Real-time Dashboard"] },
-  { label: "Risk Management", values: ["Basic", "Enhanced", "Institutional", "Hedge-fund Grade"] },
-  { label: "Withdrawal Frequency", values: ["Monthly", "Weekly", "Daily", "Instant"] },
-  { label: "Dedicated Account Manager", values: [false, false, true, true] },
-  { label: "Market Alerts & Insights", values: [false, true, true, true] },
-  { label: "Exclusive Research", values: [false, false, true, true] },
-  { label: "Private Wealth Advisor", values: [false, false, false, true] },
-  { label: "Quarterly Strategy Sessions", values: [false, false, false, true] },
+  { label: "Min. Investment", values: ["$50", "$200"] },
+  { label: "Return on Investment", values: ["10%", "15%"] },
+  { label: "Capital Lock Period", values: ["3 months", "6 months"] },
+  { label: "Profit Withdrawal", values: ["Anytime (min $10)", "Anytime (min $10)"] },
+  { label: "Portfolio Management", values: ["Automated", "Advanced Strategy"] },
+  { label: "Support Level", values: ["Email", "24/7 Priority"] },
+  { label: "Reports", values: ["Weekly", "Daily"] },
+  { label: "Dedicated Account Manager", values: [false, true] },
+  { label: "Exclusive Market Research", values: [false, true] },
 ];
 
 /* FAQ data */
@@ -129,29 +97,29 @@ interface FAQItem {
 
 const faqItems: FAQItem[] = [
   {
-    question: "How do I choose the right investment plan?",
+    question: "How does the capital lock period work?",
     answer:
-      "Consider your investment goals, risk tolerance, and the amount you're comfortable investing. Our Starter plan is perfect for beginners exploring managed investing, while the Growth plan suits those ready for broader market access. Professional and Elite plans are designed for serious investors seeking maximum returns and personalised service. You can always upgrade your plan as your portfolio grows.",
+      "When you invest, your capital is locked for the chosen term (3 months for Standard or 6 months for Premium). During this period, your investment is actively managed by our team. At the end of the lock period, you can withdraw your investment plus returns, or choose to reinvest. Early withdrawal may be subject to penalties as outlined in your plan agreement.",
   },
   {
-    question: "Can I switch plans after signing up?",
+    question: "Can I withdraw my profits before the lock period ends?",
     answer:
-      "Yes, you can upgrade your plan at any time. When you upgrade, your existing investment is carried over and the new plan terms apply from the upgrade date. Downgrades are subject to the current plan's minimum duration requirements. Contact your account manager or our support team to arrange a plan change.",
+      "Yes! While your initial capital remains locked for the duration of your plan (3 or 6 months), you can withdraw your earned profits at any time. The minimum profit withdrawal amount is $10. This gives you the flexibility to access your earnings while your capital continues to grow at the locked-in rate.",
   },
   {
     question: "Are the ROI percentages guaranteed?",
     answer:
-      "The ROI ranges shown are historical performance targets based on market conditions and our fund management track record. While we strive to achieve these returns, all investments carry risk and past performance is not indicative of future results. Our risk management frameworks are designed to protect capital while pursuing growth, but returns cannot be guaranteed.",
+      "The returns shown are based on our fund management track record and expert strategy. While we strive to achieve these returns, all investments carry risk and returns cannot be guaranteed. Our risk management frameworks are designed to protect capital while pursuing growth.",
   },
   {
-    question: "What happens at the end of my plan duration?",
+    question: "What happens at the end of my lock period?",
     answer:
-      "At the end of your plan duration, you can choose to withdraw your investment and returns, renew for the same plan term, or upgrade to a higher tier. We'll notify you 30 days before your plan expires so you have ample time to decide. There are no penalties for renewal or upgrade.",
+      "At the end of your lock period, you can choose to withdraw your investment and returns, renew for the same term, or upgrade to a higher tier. We'll notify you 30 days before your lock period expires so you have ample time to decide. There are no penalties for renewal or upgrade.",
   },
   {
-    question: "How quickly can I withdraw my funds?",
+    question: "What is the minimum investment?",
     answer:
-      "Withdrawal requests are processed within 1-3 business days for standard plans. Professional and Elite members enjoy expedited same-day processing. You can initiate a withdrawal from your dashboard at any time. Early withdrawals before the minimum plan duration may be subject to a small exit fee, detailed in your plan agreement.",
+      "The Standard plan requires a minimum investment of $50 with a 3-month lock period and 10% return. The Premium plan requires a minimum of $200 with a 6-month lock period and 15% return. While your capital is locked, you can withdraw your profits at any time with a minimum withdrawal of $10.",
   },
   {
     question: "Is my investment protected?",
@@ -315,9 +283,8 @@ export default function PlansPage() {
               Investment Plans
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-brand-200/80 leading-relaxed">
-              Choose the plan that aligns with your financial goals. From
-              beginner-friendly options to elite-tier wealth management, every
-              plan includes expert oversight and transparent reporting.
+              Lock your capital for a fixed term and earn competitive returns.
+              Choose between our Standard and Premium plans.
             </p>
           </motion.div>
         </div>
@@ -340,7 +307,7 @@ export default function PlansPage() {
               Pricing
             </span>
             <h2 className="text-3xl font-bold tracking-tight text-brand-950 sm:text-4xl">
-              Find Your Perfect Plan
+              Choose Your Lock Period
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600 leading-relaxed">
               Every plan includes expert portfolio management, transparent
@@ -354,7 +321,7 @@ export default function PlansPage() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-5"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 max-w-5xl mx-auto"
           >
             {tiers.map((tier) => (
               <motion.div
@@ -413,28 +380,71 @@ export default function PlansPage() {
                     </p>
                   </div>
 
-                  {/* Minimum investment */}
+                  {/* Return, lock period & minimum investment */}
                   <div
                     className={cn(
-                      "mb-4 rounded-xl p-4",
+                      "mb-4 rounded-xl p-4 space-y-3",
                       tier.highlight ? "bg-white/5" : "bg-brand-50"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "text-xs font-medium mb-1",
-                        tier.highlight ? "text-slate-400" : "text-slate-600"
-                      )}
-                    >
-                      Minimum Investment
+                    <div>
+                      <div
+                        className={cn(
+                          "text-xs font-medium mb-1",
+                          tier.highlight ? "text-slate-400" : "text-slate-600"
+                        )}
+                      >
+                        Return on Investment
+                      </div>
+                      <div
+                        className={cn(
+                          "text-2xl font-bold",
+                          tier.highlight ? "text-white" : "text-brand-950"
+                        )}
+                      >
+                        {tier.returnPct}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        className={cn(
+                          "text-xs font-medium mb-1",
+                          tier.highlight ? "text-slate-400" : "text-slate-600"
+                        )}
+                      >
+                        Capital Lock Period
+                      </div>
+                      <div
+                        className={cn(
+                          "text-lg font-bold",
+                          tier.highlight ? "text-white" : "text-brand-950"
+                        )}
+                      >
+                        {tier.lockPeriod}
+                      </div>
                     </div>
                     <div
                       className={cn(
-                        "text-2xl font-bold",
-                        tier.highlight ? "text-white" : "text-brand-950"
+                        "border-t pt-2 mt-1",
+                        tier.highlight ? "border-white/10" : "border-slate-200"
                       )}
                     >
-                      {tier.minInvestment}
+                      <div
+                        className={cn(
+                          "text-xs font-medium mb-0.5",
+                          tier.highlight ? "text-slate-400" : "text-slate-600"
+                        )}
+                      >
+                        Minimum Investment
+                      </div>
+                      <div
+                        className={cn(
+                          "text-base font-bold",
+                          tier.highlight ? "text-white" : "text-brand-950"
+                        )}
+                      >
+                        {tier.minInvestment}
+                      </div>
                     </div>
                   </div>
 

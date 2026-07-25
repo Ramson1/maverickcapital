@@ -31,28 +31,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Check admin routes for admin role
-    if (pathname.startsWith("/admin")) {
-      const { data: profile } = await supabase
-        .from("mc_profiles")
-        .select("mc_user_roles(mc_roles(name))")
-        .eq("id", user.id)
-        .single();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const userRoles = (profile?.mc_user_roles as any[]) || [];
-      const roles = userRoles
-        .flatMap((ur: any) => (Array.isArray(ur.mc_roles) ? ur.mc_roles : [ur.mc_roles]))
-        .filter(Boolean);
-      const isAdmin = roles.some((r) =>
-        ["super_admin", "admin", "moderator"].includes(r.name)
-      );
-
-      if (!isAdmin) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
-      }
-    }
-
     return response;
   }
 

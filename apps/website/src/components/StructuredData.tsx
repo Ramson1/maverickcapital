@@ -47,32 +47,16 @@ export function OrganizationSchema() {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": "Starter Plan",
-            "description": "Entry-level investment plan with minimum $100 investment"
+            "name": "Standard Plan",
+            "description": "3-month capital lock with 10% return, minimum $50 investment, profits withdrawable anytime"
           }
         },
         {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": "Growth Plan",
-            "description": "Mid-tier investment plan with minimum $1,000 investment"
-          }
-        },
-        {
-          "@type": "Offer",
-          "itemOffered": {
-            "@type": "Service",
-            "name": "Professional Plan",
-            "description": "Professional investment plan with minimum $10,000 investment"
-          }
-        },
-        {
-          "@type": "Offer",
-          "itemOffered": {
-            "@type": "Service",
-            "name": "Elite Plan",
-            "description": "Elite investment plan with minimum $50,000 investment"
+            "name": "Premium Plan",
+            "description": "6-month capital lock with 15% return, minimum $200 investment, profits withdrawable anytime"
           }
         }
       ]

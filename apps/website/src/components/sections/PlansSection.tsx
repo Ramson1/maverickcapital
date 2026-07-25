@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Sparkles, TrendingUp, Shield, Users, Zap } from "lucide-react";
+import { Check, Sparkles, TrendingUp, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TierFeature {
@@ -12,6 +12,8 @@ interface TierFeature {
 interface Tier {
   name: string;
   minInvestment: string;
+  lockPeriod: string;
+  returnPct: string;
   icon: React.ElementType;
   description: string;
   features: TierFeature[];
@@ -20,68 +22,40 @@ interface Tier {
 
 const tiers: Tier[] = [
   {
-    name: "Starter",
-    minInvestment: "$100",
+    name: "Standard",
+    minInvestment: "$50",
+    lockPeriod: "3 months",
+    returnPct: "10%",
     icon: TrendingUp,
-    description: "Begin your investment journey with professional management",
+    description: "Solid returns with a short-term capital lock for flexible investing",
     features: [
-      { text: "10% monthly returns", included: true },
+      { text: "10% return on investment", included: true },
+      { text: "3-month capital lock period", included: true },
+      { text: "Withdraw profits anytime (min $10)", included: true },
       { text: "Automated portfolio management", included: true },
       { text: "Weekly performance reports", included: true },
       { text: "Email support", included: true },
-      { text: "Basic risk management", included: true },
-      { text: "Monthly withdrawals", included: true },
       { text: "Dedicated account manager", included: false },
       { text: "Priority support", included: false },
     ],
   },
   {
-    name: "Growth",
-    minInvestment: "$1,000",
-    icon: Users,
-    description: "Enhanced service for serious investors",
-    features: [
-      { text: "10% monthly returns", included: true },
-      { text: "Advanced portfolio strategy", included: true },
-      { text: "Bi-weekly performance reports", included: true },
-      { text: "Priority email & chat support", included: true },
-      { text: "Enhanced risk controls", included: true },
-      { text: "Weekly withdrawals", included: true },
-      { text: "Market alerts & insights", included: true },
-      { text: "Dedicated account manager", included: false },
-    ],
-  },
-  {
-    name: "Professional",
-    minInvestment: "$10,000",
+    name: "Premium",
+    minInvestment: "$200",
+    lockPeriod: "6 months",
+    returnPct: "15%",
     icon: Shield,
-    description: "Institutional-grade management with dedicated support",
+    description: "Higher returns with a longer lock for committed investors",
     highlight: true,
     features: [
-      { text: "10% monthly returns", included: true },
-      { text: "Algorithmic trading strategies", included: true },
+      { text: "15% return on investment", included: true },
+      { text: "6-month capital lock period", included: true },
+      { text: "Withdraw profits anytime (min $10)", included: true },
+      { text: "Advanced portfolio strategy", included: true },
       { text: "Daily performance reports", included: true },
       { text: "24/7 priority support", included: true },
-      { text: "Institutional risk controls", included: true },
-      { text: "Daily withdrawals", included: true },
       { text: "Dedicated account manager", included: true },
       { text: "Exclusive market research", included: true },
-    ],
-  },
-  {
-    name: "Elite",
-    minInvestment: "$50,000",
-    icon: Zap,
-    description: "White-glove service for high-net-worth investors",
-    features: [
-      { text: "10% monthly returns", included: true },
-      { text: "Custom portfolio strategy", included: true },
-      { text: "Real-time performance dashboard", included: true },
-      { text: "24/7 VIP support line", included: true },
-      { text: "Hedge-fund grade risk models", included: true },
-      { text: "Instant withdrawals", included: true },
-      { text: "Private wealth advisor", included: true },
-      { text: "Quarterly strategy sessions", included: true },
     ],
   },
 ];
@@ -123,15 +97,15 @@ export function PlansSection() {
             Investment Tiers
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-brand-950 tracking-tight">
-            Earn 10% Monthly Returns
+            Choose Your Lock Period
           </h2>
           <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Professional portfolio management with consistent monthly returns.
-            Choose your service tier based on your investment amount.
+            Lock your capital for a fixed term and earn guaranteed returns.
+            Longer lock periods unlock higher yields.
           </p>
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-brand-50 px-6 py-3 text-base font-semibold text-brand-700">
             <Sparkles className="h-5 w-5" />
-            <span>Same 10% monthly returns across all tiers</span>
+            <span>Up to 15% returns on locked capital</span>
           </div>
         </motion.div>
 
@@ -141,7 +115,7 @@ export function PlansSection() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-50px" }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-5"
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-5xl mx-auto"
         >
           {tiers.map((tier) => (
             <motion.div
@@ -202,28 +176,71 @@ export function PlansSection() {
                   </p>
                 </div>
 
-                {/* Minimum investment */}
+                {/* Return & lock period */}
                 <div
                   className={cn(
-                    "mb-4 rounded-xl p-4",
+                    "mb-4 rounded-xl p-4 space-y-3",
                     tier.highlight ? "bg-white/5" : "bg-brand-50"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "text-xs font-medium mb-1",
-                      tier.highlight ? "text-slate-400" : "text-slate-600"
-                    )}
-                  >
-                    Minimum Investment
+                  <div>
+                    <div
+                      className={cn(
+                        "text-xs font-medium mb-1",
+                        tier.highlight ? "text-slate-400" : "text-slate-600"
+                      )}
+                    >
+                      Return on Investment
+                    </div>
+                    <div
+                      className={cn(
+                        "text-2xl font-bold",
+                        tier.highlight ? "text-white" : "text-brand-950"
+                      )}
+                    >
+                      {tier.returnPct}
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      className={cn(
+                        "text-xs font-medium mb-1",
+                        tier.highlight ? "text-slate-400" : "text-slate-600"
+                      )}
+                    >
+                      Capital Lock Period
+                    </div>
+                    <div
+                      className={cn(
+                        "text-lg font-bold",
+                        tier.highlight ? "text-white" : "text-brand-950"
+                      )}
+                    >
+                      {tier.lockPeriod}
+                    </div>
                   </div>
                   <div
                     className={cn(
-                      "text-2xl font-bold",
-                      tier.highlight ? "text-white" : "text-brand-950"
+                      "border-t pt-2 mt-1",
+                      tier.highlight ? "border-white/10" : "border-slate-200"
                     )}
                   >
-                    {tier.minInvestment}
+                    <div
+                      className={cn(
+                        "text-xs font-medium mb-0.5",
+                        tier.highlight ? "text-slate-400" : "text-slate-600"
+                      )}
+                    >
+                      Minimum Investment
+                    </div>
+                    <div
+                      className={cn(
+                        "text-base font-bold",
+                        tier.highlight ? "text-white" : "text-brand-950"
+                      )}
+                    >
+                      {tier.minInvestment}
+                    </div>
                   </div>
                 </div>
 
@@ -304,10 +321,9 @@ export function PlansSection() {
           className="mt-12 rounded-2xl bg-slate-50 p-6 text-center"
         >
           <p className="text-xs text-slate-600 leading-relaxed max-w-4xl mx-auto">
-            <strong>Important Disclosure:</strong> Investment involves risk. Past performance does not guarantee future results. 
-            The 10% monthly return target is based on our expert management strategy and historical performance, but is not guaranteed. 
-            Please invest responsibly and only invest funds you can afford to have at risk. Our team employs sophisticated risk management 
-            techniques to protect your capital while seeking consistent returns.
+            <strong>Important Disclosure:</strong> Investment involves risk. Returns are based on our expert management strategy and historical performance, but are not guaranteed.
+            Capital is locked for the chosen term and early withdrawal may be subject to penalties. Please invest responsibly and only invest funds you can afford to have at risk.
+            Our team employs sophisticated risk management techniques to protect your capital while seeking consistent returns.
           </p>
         </motion.div>
       </div>
