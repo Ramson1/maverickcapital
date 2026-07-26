@@ -16,7 +16,6 @@ import {
   HeadphonesIcon,
   Settings,
   User,
-  CreditCard,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -27,14 +26,11 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Wallet", href: "/dashboard/wallet", icon: Wallet },
-  { name: "Transactions", href: "/dashboard/transactions", icon: ArrowLeftRight },
+  { name: "Deposits & Withdrawals", href: "/dashboard/deposits", icon: ArrowLeftRight },
   { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Signals", href: "/dashboard/signals", icon: Signal },
-  { name: "Subscriptions", href: "/dashboard/subscriptions", icon: CreditCard },
   { name: "Referrals", href: "/dashboard/referrals", icon: Users },
   { name: "News", href: "/dashboard/news", icon: Newspaper },
-  { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];

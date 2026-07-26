@@ -19,7 +19,6 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useHardCap } from "@/hooks/useHardCap";
-import { WalletSection } from "@/components/web3/WalletButton";
 import { DashboardSkeleton } from "@/components/ui/PageSkeletons";
 
 interface StatItem {
@@ -138,16 +137,11 @@ export function DashboardContent() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Dashboard</h1>
-          <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-            Welcome back! Here&apos;s your investment overview.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <WalletSection />
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Dashboard</h1>
+        <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
+          Welcome back! Here&apos;s your investment overview.
+        </p>
       </div>
 
       {/* Hard Cap Progress Bar */}

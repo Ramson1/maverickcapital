@@ -4,7 +4,6 @@ import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useState, useCallback } from "react";
 import { Wallet, Loader2, X, ChevronDown } from "lucide-react";
-import { useTronWeb } from "@/hooks/useTronWeb";
 import type { WindowExtensions, DetectedWallet } from "@/types/wallet";
 
 interface WalletButtonProps {
@@ -282,52 +281,6 @@ export function WalletButton({ disabled, disabledLabel }: WalletButtonProps) {
         </div>
       )}
     </div>
-  );
-}
-
-// Tron wallet button component
-interface TronButtonProps {
-  disabled?: boolean;
-  disabledLabel?: string;
-}
-
-export function TronWalletButton({ disabled, disabledLabel }: TronButtonProps) {
-  const tron = useTronWeb();
-
-  if (tron.address) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-500/10">
-        <div className="h-2 w-2 rounded-full bg-blue-500" />
-        <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
-          Tron: {tron.address.slice(0, 8)}...{tron.address.slice(-6)}
-        </span>
-        <button
-          onClick={tron.disconnect}
-          className="ml-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          Disconnect
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={tron.connect}
-      disabled={tron.connecting || disabled}
-      className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-opacity hover:bg-blue-600 disabled:opacity-50 dark:border-blue-700"
-    >
-      {tron.connecting ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Wallet className="h-4 w-4" />
-      )}
-      {disabled
-        ? disabledLabel || "Disabled"
-        : tron.connecting
-          ? "Connecting..."
-          : "Connect TronLink"}
-    </button>
   );
 }
 
