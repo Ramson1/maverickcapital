@@ -25,6 +25,18 @@ create table if not exists mc_profiles (
   updated_at    timestamptz default now()
 );
 
+-- Ensure columns exist on previously-created tables
+alter table mc_profiles add column if not exists phone text;
+alter table mc_profiles add column if not exists withdrawal_address text;
+alter table mc_profiles add column if not exists wallet_balance numeric(18,2) default 0;
+alter table mc_profiles add column if not exists total_investment numeric(18,2) default 0;
+alter table mc_profiles add column if not exists total_profit numeric(18,2) default 0;
+alter table mc_profiles add column if not exists referral_code text unique;
+alter table mc_profiles add column if not exists referred_by uuid references mc_profiles(id);
+alter table mc_profiles add column if not exists kyc_status text default 'pending';
+alter table mc_profiles add column if not exists account_status text default 'active';
+alter table mc_profiles add column if not exists is_active boolean default true;
+
 -- Auto-create profile on signup with referral code handling
 create or replace function handle_new_user()
 returns trigger as $$
@@ -131,6 +143,15 @@ create table if not exists mc_deposits (
   updated_at       timestamptz default now()
 );
 
+alter table mc_deposits add column if not exists plan_name text;
+alter table mc_deposits add column if not exists lock_period_months int;
+alter table mc_deposits add column if not exists lock_end_date timestamptz;
+alter table mc_deposits add column if not exists tx_hash text;
+alter table mc_deposits add column if not exists proof_data text;
+alter table mc_deposits add column if not exists destination_address text;
+alter table mc_deposits add column if not exists reviewed_by uuid references auth.users(id);
+alter table mc_deposits add column if not exists reviewed_at timestamptz;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 5. WITHDRAWALS
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -149,6 +170,11 @@ create table if not exists mc_withdrawals (
   updated_at          timestamptz default now()
 );
 
+alter table mc_withdrawals add column if not exists destination_address text;
+alter table mc_withdrawals add column if not exists tx_hash text;
+alter table mc_withdrawals add column if not exists reviewed_by uuid references auth.users(id);
+alter table mc_withdrawals add column if not exists reviewed_at timestamptz;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 6. INVESTMENT PLANS
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -163,6 +189,8 @@ create table if not exists mc_investment_plans (
   active            boolean default true,
   created_at        timestamptz default now()
 );
+
+alter table mc_investment_plans add column if not exists active boolean default true;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 7. INVESTMENTS (user's active investment positions)
@@ -182,6 +210,11 @@ create table if not exists mc_investments (
   updated_at    timestamptz default now()
 );
 
+alter table mc_investments add column if not exists deposit_id uuid references mc_deposits(id);
+alter table mc_investments add column if not exists current_value numeric(18,2) default 0;
+alter table mc_investments add column if not exists roi_percent numeric(8,2) default 0;
+alter table mc_investments add column if not exists end_date timestamptz;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. SIGNAL CATEGORIES
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -192,6 +225,8 @@ create table if not exists mc_signal_categories (
   active  boolean default true,
   created_at timestamptz default now()
 );
+
+alter table mc_signal_categories add column if not exists active boolean default true;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 9. SIGNALS — trading signal posts
@@ -236,6 +271,8 @@ create table if not exists mc_subscriptions (
   amount      numeric(18,2) default 0,
   tx_hash     text,
   proof_data  text,              -- base64 data URL of proof image/PDF
+  payment_method text,
+  network     text,
   status      text not null default 'pending_confirmation',
                                -- pending_confirmation | active | rejected | cancelled | expired
   start_date  timestamptz,
@@ -244,6 +281,49 @@ create table if not exists mc_subscriptions (
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
+
+alter table mc_subscriptions add column if not exists amount numeric(18,2) default 0;
+alter table mc_subscriptions add column if not exists tx_hash text;
+alter table mc_subscriptions add column if not exists proof_data text;
+alter table mc_subscriptions add column if not exists payment_method text;
+alter table mc_subscriptions add column if not exists network text;
+alter table mc_subscriptions add column if not exists start_date timestamptz;
+alter table mc_subscriptions add column if not exists end_date timestamptz;
+alter table mc_subscriptions add column if not exists reviewed_at timestamptz;
+
+-- Migrate plan_id from uuid to text (safe no-op if already text)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'mc_subscriptions' and column_name = 'plan_id' and data_type = 'uuid'
+  ) then
+    alter table mc_subscriptions add column plan_id_text text;
+    update mc_subscriptions set plan_id_text = plan_id::text where plan_id is not null;
+    alter table mc_subscriptions drop column plan_id;
+    alter table mc_subscriptions rename column plan_id_text to plan_id;
+    alter table mc_subscriptions alter column plan_id set not null;
+  end if;
+end $$;
+
+-- Migrate status from enum to text (safe no-op if already text)
+-- First drop dependent policies that reference this column
+select _drop_policy('mc_signals', 'mc_subscribers_can_view_premium_signals');
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'mc_subscriptions' and column_name = 'status' and data_type = 'USER-DEFINED'
+  ) then
+    alter table mc_subscriptions add column status_text text default 'pending_confirmation';
+    update mc_subscriptions set status_text = status::text;
+    alter table mc_subscriptions drop column status;
+    alter table mc_subscriptions rename column status_text to status;
+    alter table mc_subscriptions alter column status set not null;
+    alter table mc_subscriptions alter column status set default 'pending_confirmation';
+  end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 12. NEWS
@@ -312,6 +392,8 @@ create table if not exists mc_wallets (
   updated_at timestamptz default now()
 );
 
+alter table mc_wallets add column if not exists active boolean default true;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 17. CMS — content management entries
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -326,6 +408,8 @@ create table if not exists mc_cms (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table mc_cms add column if not exists active boolean default true;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 18. REFERRALS
@@ -363,13 +447,22 @@ returns boolean as $$
   select exists (
     select 1 from mc_user_roles ur
     join mc_roles r on r.id = ur.role_id
-    where ur.user_id = uid and r.name = 'admin'
+    where ur.user_id = uid and r.name in ('admin', 'super_admin', 'moderator')
   );
 $$ language sql security definer stable;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY (RLS)
 -- ═════════════════════════════════════════════════════════════════════════════
+
+-- Helper: safely drop a policy (idempotent re-runs)
+create or replace function _drop_policy(p_table text, p_policy text)
+returns void as $$
+begin
+  execute format('drop policy %I on %I', p_policy, p_table);
+exception when undefined_object then null;
+end;
+$$ language plpgsql;
 
 -- Enable RLS on all tables
 alter table mc_profiles enable row level security;
@@ -394,160 +487,255 @@ alter table mc_referrals enable row level security;
 alter table mc_audit_logs enable row level security;
 
 -- ── Profiles: users read/update own, admins read/update all ──
+select _drop_policy('mc_profiles', 'Users can view own profile');
 create policy "Users can view own profile"
   on mc_profiles for select using (auth.uid() = id or is_admin(auth.uid()));
 
+select _drop_policy('mc_profiles', 'Users can update own profile');
 create policy "Users can update own profile"
   on mc_profiles for update using (auth.uid() = id or is_admin(auth.uid()));
 
+select _drop_policy('mc_profiles', 'Admins can insert profiles');
 create policy "Admins can insert profiles"
   on mc_profiles for insert with check (is_admin(auth.uid()));
 
 -- ── Settings: everyone can read, only admins can write ──
+select _drop_policy('mc_settings', 'Anyone can read settings');
 create policy "Anyone can read settings"
   on mc_settings for select using (true);
 
+select _drop_policy('mc_settings', 'Admins can manage settings');
+select _drop_policy('mc_settings', 'Admins can insert settings');
+select _drop_policy('mc_settings', 'Admins can update settings');
+select _drop_policy('mc_settings', 'Admins can delete settings');
 create policy "Admins can manage settings"
   on mc_settings for all
   using (is_admin(auth.uid()));
 
 -- ── Deposits: users read own, admins read/update all ──
+select _drop_policy('mc_deposits', 'Users can view own deposits');
 create policy "Users can view own deposits"
   on mc_deposits for select using (auth.uid() = user_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_deposits', 'Users can insert own deposits');
 create policy "Users can insert own deposits"
   on mc_deposits for insert with check (auth.uid() = user_id);
 
+select _drop_policy('mc_deposits', 'Admins can manage deposits');
+select _drop_policy('mc_deposits', 'Admins can insert deposits');
+select _drop_policy('mc_deposits', 'Admins can update deposits');
+select _drop_policy('mc_deposits', 'Admins can delete deposits');
 create policy "Admins can manage deposits"
   on mc_deposits for all using (is_admin(auth.uid()));
 
 -- ── Withdrawals: users read own, admins read/update all ──
+select _drop_policy('mc_withdrawals', 'Users can view own withdrawals');
 create policy "Users can view own withdrawals"
   on mc_withdrawals for select using (auth.uid() = user_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_withdrawals', 'Users can insert own withdrawals');
 create policy "Users can insert own withdrawals"
   on mc_withdrawals for insert with check (auth.uid() = user_id);
 
+select _drop_policy('mc_withdrawals', 'Admins can manage withdrawals');
+select _drop_policy('mc_withdrawals', 'Admins can insert withdrawals');
+select _drop_policy('mc_withdrawals', 'Admins can update withdrawals');
+select _drop_policy('mc_withdrawals', 'Admins can delete withdrawals');
 create policy "Admins can manage withdrawals"
   on mc_withdrawals for all using (is_admin(auth.uid()));
 
 -- ── Investments: users read own, admins read/update all ──
+select _drop_policy('mc_investments', 'Users can view own investments');
 create policy "Users can view own investments"
   on mc_investments for select using (auth.uid() = user_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_investments', 'Admins can manage investments');
+select _drop_policy('mc_investments', 'Admins can insert investments');
+select _drop_policy('mc_investments', 'Admins can update investments');
+select _drop_policy('mc_investments', 'Admins can delete investments');
 create policy "Admins can manage investments"
   on mc_investments for all using (is_admin(auth.uid()));
 
 -- ── Signals: everyone can read active, admins full access ──
+select _drop_policy('mc_signals', 'Anyone can read active signals');
 create policy "Anyone can read active signals"
   on mc_signals for select using (status = 'active' or is_admin(auth.uid()));
 
+select _drop_policy('mc_signals', 'Admins can manage signals');
+select _drop_policy('mc_signals', 'Admins can insert signals');
+select _drop_policy('mc_signals', 'Admins can update signals');
+select _drop_policy('mc_signals', 'Admins can delete signals');
 create policy "Admins can manage signals"
   on mc_signals for all using (is_admin(auth.uid()));
 
 -- ── Signal categories: everyone can read ──
+select _drop_policy('mc_signal_categories', 'Anyone can read signal categories');
 create policy "Anyone can read signal categories"
   on mc_signal_categories for select using (true);
 
 -- ── Subscription plans: everyone can read ──
+select _drop_policy('mc_subscription_plans', 'Anyone can read subscription plans');
 create policy "Anyone can read subscription plans"
   on mc_subscription_plans for select using (true);
 
 -- ── Subscriptions: users read own, admins read/update all ──
+select _drop_policy('mc_subscriptions', 'Users can view own subscriptions');
 create policy "Users can view own subscriptions"
   on mc_subscriptions for select using (auth.uid() = user_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_subscriptions', 'Users can insert own subscriptions');
 create policy "Users can insert own subscriptions"
   on mc_subscriptions for insert with check (auth.uid() = user_id);
 
+select _drop_policy('mc_subscriptions', 'Admins can manage subscriptions');
+select _drop_policy('mc_subscriptions', 'Admins can insert subscriptions');
+select _drop_policy('mc_subscriptions', 'Admins can update subscriptions');
+select _drop_policy('mc_subscriptions', 'Admins can delete subscriptions');
 create policy "Admins can manage subscriptions"
   on mc_subscriptions for all using (is_admin(auth.uid()));
 
 -- ── News: everyone can read published, admins full access ──
+select _drop_policy('mc_news', 'Anyone can read published news');
 create policy "Anyone can read published news"
   on mc_news for select using (published_at is not null or is_admin(auth.uid()));
 
+select _drop_policy('mc_news', 'Admins can manage news');
+select _drop_policy('mc_news', 'Admins can insert news');
+select _drop_policy('mc_news', 'Admins can update news');
+select _drop_policy('mc_news', 'Admins can delete news');
 create policy "Admins can manage news"
   on mc_news for all using (is_admin(auth.uid()));
 
 -- ── Notifications: users read own, admins full access ──
+select _drop_policy('mc_notifications', 'Users can view own notifications');
 create policy "Users can view own notifications"
   on mc_notifications for select using (auth.uid() = user_id or user_id is null or is_admin(auth.uid()));
 
+select _drop_policy('mc_notifications', 'Users can update own notifications');
 create policy "Users can update own notifications"
   on mc_notifications for update using (auth.uid() = user_id);
 
-create policy "Admins can manage notifications"
-  on mc_notifications for all using (is_admin(auth.uid()));
+select _drop_policy('mc_notifications', 'Admins can manage notifications');
+select _drop_policy('mc_notifications', 'Admins can view notifications');
+select _drop_policy('mc_notifications', 'Admins can insert notifications');
+select _drop_policy('mc_notifications', 'Admins can update notifications');
+select _drop_policy('mc_notifications', 'Admins can delete notifications');
+create policy "Admins can view notifications"
+  on mc_notifications for select using (is_admin(auth.uid()));
+
+create policy "Admins can insert notifications"
+  on mc_notifications for insert with check (is_admin(auth.uid()));
+
+create policy "Admins can update notifications"
+  on mc_notifications for update using (is_admin(auth.uid())) with check (is_admin(auth.uid()));
+
+create policy "Admins can delete notifications"
+  on mc_notifications for delete using (is_admin(auth.uid()));
 
 -- ── Support tickets: users read own, admins read all ──
+select _drop_policy('mc_support_tickets', 'Users can view own support tickets');
 create policy "Users can view own support tickets"
   on mc_support_tickets for select using (auth.uid() = user_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_support_tickets', 'Users can create support tickets');
 create policy "Users can create support tickets"
   on mc_support_tickets for insert with check (auth.uid() = user_id);
 
+select _drop_policy('mc_support_tickets', 'Admins can manage support tickets');
+select _drop_policy('mc_support_tickets', 'Admins can insert support tickets');
+select _drop_policy('mc_support_tickets', 'Admins can update support tickets');
+select _drop_policy('mc_support_tickets', 'Admins can delete support tickets');
 create policy "Admins can manage support tickets"
   on mc_support_tickets for all using (is_admin(auth.uid()));
 
 -- ── Support messages: users read own ticket messages, admins read all ──
+select _drop_policy('mc_support_messages', 'Users can view messages on own tickets');
 create policy "Users can view messages on own tickets"
   on mc_support_messages for select
   using (is_admin(auth.uid()) or exists (
     select 1 from mc_support_tickets t where t.id = ticket_id and t.user_id = auth.uid()
   ));
 
+select _drop_policy('mc_support_messages', 'Users can send messages on own tickets');
 create policy "Users can send messages on own tickets"
   on mc_support_messages for insert
   with check (auth.uid() = sender_id and exists (
     select 1 from mc_support_tickets t where t.id = ticket_id and t.user_id = auth.uid()
   ));
 
+select _drop_policy('mc_support_messages', 'Admins can manage support messages');
+select _drop_policy('mc_support_messages', 'Admins can insert support messages');
+select _drop_policy('mc_support_messages', 'Admins can update support messages');
+select _drop_policy('mc_support_messages', 'Admins can delete support messages');
 create policy "Admins can manage support messages"
   on mc_support_messages for all using (is_admin(auth.uid()));
 
 -- ── Wallets: everyone can read active, admins full access ──
+select _drop_policy('mc_wallets', 'Anyone can read active wallets');
 create policy "Anyone can read active wallets"
   on mc_wallets for select using (active = true or is_admin(auth.uid()));
 
+select _drop_policy('mc_wallets', 'Admins can manage wallets');
+select _drop_policy('mc_wallets', 'Admins can insert wallets');
+select _drop_policy('mc_wallets', 'Admins can update wallets');
+select _drop_policy('mc_wallets', 'Admins can delete wallets');
 create policy "Admins can manage wallets"
   on mc_wallets for all using (is_admin(auth.uid()));
 
 -- ── CMS: everyone can read active, admins full access ──
+select _drop_policy('mc_cms', 'Anyone can read active CMS items');
 create policy "Anyone can read active CMS items"
   on mc_cms for select using (active = true or is_admin(auth.uid()));
 
+select _drop_policy('mc_cms', 'Admins can manage CMS items');
+select _drop_policy('mc_cms', 'Admins can insert CMS items');
+select _drop_policy('mc_cms', 'Admins can update CMS items');
+select _drop_policy('mc_cms', 'Admins can delete CMS items');
 create policy "Admins can manage CMS items"
   on mc_cms for all using (is_admin(auth.uid()));
 
 -- ── Referrals: users read own, admins read all ──
+select _drop_policy('mc_referrals', 'Users can view own referrals');
 create policy "Users can view own referrals"
   on mc_referrals for select using (auth.uid() = referrer_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_referrals', 'Admins can manage referrals');
+select _drop_policy('mc_referrals', 'Admins can insert referrals');
+select _drop_policy('mc_referrals', 'Admins can update referrals');
+select _drop_policy('mc_referrals', 'Admins can delete referrals');
 create policy "Admins can manage referrals"
   on mc_referrals for all using (is_admin(auth.uid()));
 
 -- ── Audit logs: admins only ──
+select _drop_policy('mc_audit_logs', 'Admins can read audit logs');
 create policy "Admins can read audit logs"
   on mc_audit_logs for select
   using (is_admin(auth.uid()));
 
+select _drop_policy('mc_audit_logs', 'Admins can insert audit logs');
 create policy "Admins can insert audit logs"
   on mc_audit_logs for insert
   with check (is_admin(auth.uid()));
 
 -- ── Roles: everyone can read ──
+select _drop_policy('mc_roles', 'Anyone can read roles');
 create policy "Anyone can read roles"
   on mc_roles for select using (true);
 
 -- ── User roles: users read own, admins manage all ──
+select _drop_policy('mc_user_roles', 'Users can view own roles');
 create policy "Users can view own roles"
   on mc_user_roles for select using (auth.uid() = user_id or is_admin(auth.uid()));
 
+select _drop_policy('mc_user_roles', 'Admins can manage user roles');
+select _drop_policy('mc_user_roles', 'Admins can insert user roles');
+select _drop_policy('mc_user_roles', 'Admins can update user roles');
+select _drop_policy('mc_user_roles', 'Admins can delete user roles');
 create policy "Admins can manage user roles"
   on mc_user_roles for all using (is_admin(auth.uid()));
 
 -- ── Investment plans: everyone can read active ──
+select _drop_policy('mc_investment_plans', 'Anyone can read active investment plans');
 create policy "Anyone can read active investment plans"
   on mc_investment_plans for select using (active = true);
 
