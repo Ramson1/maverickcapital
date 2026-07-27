@@ -14,6 +14,8 @@ import {
   Loader2,
   Lock,
   AlertTriangle,
+  BarChart3,
+  Activity,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -50,6 +52,7 @@ export function DashboardContent() {
 
   const [stats, setStats] = useState<StatItem[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -64,6 +67,15 @@ export function DashboardContent() {
           .eq("id", user.id)
           .single();
 
+        // Fetch approved deposits directly to compute totals (fallback if profile is out of sync)
+        const { data: approvedDeposits } = await supabase
+          .from("mc_deposits")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("status", "approved");
+
+        const depositsTotal = (approvedDeposits || []).reduce((sum, d) => sum + Number(d.amount), 0);
+
         // Fetch active investment count
         const { count: activeCount } = await supabase
           .from("mc_investments")
@@ -71,22 +83,35 @@ export function DashboardContent() {
           .eq("user_id", user.id)
           .eq("status", "active");
 
-        // Fetch recent transactions
-        const { data: transactions } = await supabase
-          .from("mc_transactions")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5);
+        // Fetch recent transactions from ALL sources (deposits, withdrawals, investments)
+        const [depositsRes, withdrawalsRes, investmentsRes] = await Promise.all([
+          supabase.from("mc_deposits").select("id, amount, currency, status, submitted_at").eq("user_id", user.id).order("submitted_at", { ascending: false }).limit(5),
+          supabase.from("mc_withdrawals").select("id, amount, currency, status, submitted_at").eq("user_id", user.id).order("submitted_at", { ascending: false }).limit(5),
+          supabase.from("mc_investments").select("id, amount, currency, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+        ]);
 
-        const totalInvestment = Number(profile?.total_investment || 0);
+        if (depositsRes.error) console.error("Dashboard deposits fetch error:", depositsRes.error);
+        if (withdrawalsRes.error) console.error("Dashboard withdrawals fetch error:", withdrawalsRes.error);
+        if (investmentsRes.error) console.error("Dashboard investments fetch error:", investmentsRes.error);
+
+        // Merge all transactions into a unified list
+        const allTx: Transaction[] = [
+          ...(depositsRes.data || []).map((d) => ({ id: `dep-${d.id}`, type: "deposit", amount: Number(d.amount), currency: d.currency, status: d.status, created_at: d.submitted_at })),
+          ...(withdrawalsRes.data || []).map((w) => ({ id: `wd-${w.id}`, type: "withdrawal", amount: Number(w.amount), currency: w.currency, status: w.status, created_at: w.submitted_at })),
+          ...(investmentsRes.data || []).map((i) => ({ id: `inv-${i.id}`, type: "investment", amount: Number(i.amount), currency: i.currency, status: i.status, created_at: i.created_at })),
+        ];
+        allTx.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        // Use the larger of profile total_investment or actual approved deposits sum
+        const profileTotalDeposit = Number(profile?.total_investment || 0);
+        const totalDeposit = Math.max(profileTotalDeposit, depositsTotal);
         const totalProfit = Number(profile?.total_profit || 0);
-        const walletBalance = Number(profile?.wallet_balance || 0);
+        const walletBalance = totalDeposit + totalProfit;
 
         setStats([
           {
-            name: "Total Investment",
-            value: totalInvestment,
+            name: "Total Deposit",
+            value: totalDeposit,
             change: null,
             icon: DollarSign,
             color: "text-brand-600 dark:text-brand-400",
@@ -110,16 +135,10 @@ export function DashboardContent() {
           },
         ]);
 
-        setRecentTransactions(
-          (transactions || []).map((tx) => ({
-            id: tx.id,
-            type: tx.type,
-            amount: Number(tx.amount),
-            currency: tx.currency,
-            status: tx.status,
-            created_at: tx.created_at,
-          }))
-        );
+        setRecentTransactions(allTx.slice(0, 5));
+
+        // Build portfolio growth chart data
+        await buildChartData(user.id, chartPeriod);
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);
       } finally {
@@ -129,6 +148,86 @@ export function DashboardContent() {
 
     fetchData();
   }, [user, supabase]);
+
+  // Rebuild chart when period changes
+  useEffect(() => {
+    if (!user) return;
+    buildChartData(user.id, chartPeriod);
+  }, [chartPeriod]);
+
+  const buildChartData = async (userId: string, period: "7D" | "30D" | "90D" | "1Y") => {
+    const now = new Date();
+    let daysBack: number;
+    let bucketFn: (d: Date) => string;
+
+    switch (period) {
+      case "7D":
+        daysBack = 7;
+        bucketFn = (d) => d.toLocaleDateString("en-US", { weekday: "short" });
+        break;
+      case "30D":
+        daysBack = 30;
+        bucketFn = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        break;
+      case "90D":
+        daysBack = 90;
+        bucketFn = (d) => {
+          const week = Math.ceil((d.getDate()) / 7);
+          return `${d.toLocaleDateString("en-US", { month: "short" })} W${week}`;
+        };
+        break;
+      case "1Y":
+        daysBack = 365;
+        bucketFn = (d) => d.toLocaleDateString("en-US", { month: "short" });
+        break;
+    }
+
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    // Fetch deposits and investments in the period
+    const [deps, invs] = await Promise.all([
+      supabase.from("mc_deposits").select("amount, submitted_at").eq("user_id", userId).eq("status", "approved").gte("submitted_at", startDate.toISOString()),
+      supabase.from("mc_investments").select("amount, current_value, created_at").eq("user_id", userId).eq("status", "active").gte("created_at", startDate.toISOString()),
+    ]);
+
+    // Build cumulative value buckets
+    const buckets: Record<string, number> = {};
+    const bucketKeys: string[] = [];
+
+    for (let i = 0; i < daysBack; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (daysBack - 1 - i));
+      const key = bucketFn(d);
+      if (!buckets[key]) {
+        buckets[key] = 0;
+        bucketKeys.push(key);
+      }
+    }
+
+    // Add deposit amounts to their bucket
+    (deps.data || []).forEach((dep) => {
+      const key = bucketFn(new Date(dep.submitted_at));
+      if (buckets[key] !== undefined) buckets[key] += Number(dep.amount);
+    });
+
+    // Add investment current_value to the latest bucket (as portfolio value)
+    const totalCurrentValue = (invs.data || []).reduce((s, inv) => s + Number(inv.current_value || inv.amount), 0);
+
+    // Build cumulative growth curve
+    let cumulative = 0;
+    const data = bucketKeys.map((key) => {
+      cumulative += buckets[key];
+      return { label: key, value: cumulative };
+    });
+
+    // If we have active investments, scale the last point to include current value
+    if (totalCurrentValue > 0 && data.length > 0) {
+      data[data.length - 1].value = totalCurrentValue;
+    }
+
+    setChartData(data);
+  };
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -255,17 +354,46 @@ export function DashboardContent() {
               ))}
             </div>
           </div>
-          {/* Chart placeholder */}
-          <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-surface-200 dark:border-surface-700">
-            <p className="text-sm text-surface-400 dark:text-surface-500">Chart will be rendered here</p>
-          </div>
+          {/* Portfolio Growth Chart */}
+          {chartData.length === 0 || chartData.every((d) => d.value === 0) ? (
+            <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-surface-200 dark:border-surface-700">
+              <BarChart3 className="h-8 w-8 text-surface-300 dark:text-surface-600" />
+              <p className="mt-2 text-sm text-surface-400 dark:text-surface-500">No portfolio data yet</p>
+              <p className="text-xs text-surface-400">Make a deposit to see your growth</p>
+            </div>
+          ) : (
+            <div className="h-64">
+              <div className="flex h-full items-end gap-1.5">
+                {chartData.map((point, i) => {
+                  const maxVal = Math.max(...chartData.map((d) => d.value), 1);
+                  const height = (point.value / maxVal) * 220;
+                  return (
+                    <div key={i} className="group relative flex flex-1 flex-col items-center">
+                      {/* Tooltip */}
+                      <div className="pointer-events-none absolute -top-10 left-1/2 z-10 -translate-x-1/2 rounded-md bg-surface-900 px-2 py-1 text-[10px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:bg-surface-100 dark:text-surface-900">
+                        {formatCurrency(point.value)}
+                      </div>
+                      <div
+                        className="w-full min-w-[4px] max-w-[24px] rounded-t-md bg-gradient-to-t from-brand-600 to-brand-400 transition-all duration-300 hover:from-brand-500 hover:to-brand-300"
+                        style={{ height: `${Math.max(height, 2)}px` }}
+                      />
+                      {/* X-axis label (show fewer labels for readability) */}
+                      {(chartData.length <= 12 || i % Math.ceil(chartData.length / 10) === 0) && (
+                        <span className="mt-1.5 text-[9px] text-surface-400 dark:text-surface-500">{point.label}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Recent Transactions */}
         <div className="rounded-xl border border-surface-200 bg-white p-6 dark:border-surface-800 dark:bg-surface-900">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold text-surface-900 dark:text-white">Recent Transactions</h2>
-            <Link href="/dashboard/transactions" className="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+            <Link href="/dashboard/deposits" className="text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
               View All
             </Link>
           </div>
@@ -323,7 +451,7 @@ export function DashboardContent() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {[
-          { title: "View Transactions", desc: "See your deposit & bonus history", icon: ArrowRight, href: "/dashboard/transactions" },
+          { title: "Deposits & Withdrawals", desc: "Manage deposits and withdrawals", icon: ArrowRight, href: "/dashboard/deposits" },
           { title: "Referral Program", desc: "Earn 5% by referring friends", icon: TrendingUp, href: "/dashboard/referrals" },
         ].map((action) => {
           const Icon = action.icon;

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useReferral } from "@/hooks/useReferral";
+import { useAuth } from "@/providers/AuthProvider";
+import { createClient } from "@/lib/supabase/client";
 import {
   Users,
   DollarSign,
@@ -16,13 +19,39 @@ import {
   Loader2,
   Gift,
   TrendingUp,
+  Lock,
 } from "lucide-react";
 import { ReferralSkeleton } from "@/components/ui/PageSkeletons";
+import Link from "next/link";
 
 export default function ReferralPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
   const { referralCode, totalReferrals, totalCommission, pendingCommission, referrals, loading, refetch } = useReferral();
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [hasDeposited, setHasDeposited] = useState<boolean | null>(null);
+  const [checkingDeposit, setCheckingDeposit] = useState(true);
+
+  // Check if user has made any deposits
+  useEffect(() => {
+    const checkDeposits = async () => {
+      if (!user) {
+        setCheckingDeposit(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("mc_deposits")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "approved")
+        .limit(1);
+      
+      setHasDeposited(!!(data && data.length > 0));
+      setCheckingDeposit(false);
+    };
+    checkDeposits();
+  }, [user, supabase]);
 
   const referralLink = typeof window !== "undefined"
     ? `${window.location.origin}/register?ref=${referralCode || ""}`
@@ -59,8 +88,39 @@ export default function ReferralPage() {
     }
   };
 
-  if (loading) {
+  if (loading || checkingDeposit) {
     return <ReferralSkeleton />;
+  }
+
+  // Gate: User must have made at least one deposit to access referral program
+  if (!hasDeposited) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Affiliate Program</h1>
+          <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
+            Refer friends and earn <span className="font-semibold text-brand-600 dark:text-brand-400">5%</span> of their first deposit
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-100 dark:bg-surface-800">
+              <Lock className="h-8 w-8 text-surface-400 dark:text-surface-500" />
+            </div>
+            <h2 className="mt-6 text-lg font-semibold text-surface-900 dark:text-white">Deposit Required</h2>
+            <p className="mt-2 max-w-sm text-sm text-surface-500 dark:text-surface-400">
+              You need to make at least one deposit to unlock the affiliate program and start earning referral commissions.
+            </p>
+            <Link href="/dashboard/deposits">
+              <Button className="mt-6">
+                <DollarSign className="mr-2 h-4 w-4" />
+                Make a Deposit
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

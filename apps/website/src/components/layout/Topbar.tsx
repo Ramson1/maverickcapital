@@ -16,16 +16,12 @@ interface TopbarProps {
 // Dashboard routes for search
 const dashboardRoutes = [
   { path: "/dashboard", label: "Dashboard", description: "Overview & stats" },
-  { path: "/dashboard/wallet", label: "Wallet", description: "Manage your wallets" },
-  { path: "/dashboard/deposits", label: "Deposits", description: "View deposits" },
-  { path: "/dashboard/withdrawals", label: "Withdrawals", description: "View withdrawals" },
-  { path: "/dashboard/transactions", label: "Transactions", description: "Transaction history" },
+  { path: "/dashboard/deposits", label: "Deposits & Withdrawals", description: "Manage deposits and withdrawals" },
   { path: "/dashboard/signals", label: "Signals", description: "Trading signals" },
   { path: "/dashboard/news", label: "News", description: "Latest news" },
   { path: "/dashboard/notifications", label: "Notifications", description: "Your notifications" },
   { path: "/dashboard/profile", label: "Profile", description: "Your profile" },
   { path: "/dashboard/support", label: "Support", description: "Help & support" },
-  { path: "/dashboard/subscriptions", label: "Subscriptions", description: "Manage subscriptions" },
   { path: "/dashboard/settings", label: "Settings", description: "Account settings" },
   { path: "/dashboard/analytics", label: "Analytics", description: "Performance analytics" },
   { path: "/dashboard/referrals", label: "Referrals", description: "Affiliate program" },

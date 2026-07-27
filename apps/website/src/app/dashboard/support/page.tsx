@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { useToast } from "@/providers/ToastProvider";
 import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "succes
 export default function SupportPage() {
   const { user } = useAuth();
   const supabase = createClient();
+  const { error: showError, success: showSuccess } = useToast();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -352,6 +354,7 @@ function ChatView({
   onMessageDelete: (id: string) => void;
   onNewMessage: (msg: Message) => void;
 }) {
+  const { error: showError } = useToast();
   const [inputValue, setInputValue] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -394,15 +397,20 @@ function ChatView({
     try {
       if (editingMsg) {
         // Update message
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("mc_support_messages")
           .update({ body: editValue.trim(), edited: true })
           .eq("id", editingMsg.id)
           .select()
           .single();
-        if (data) onMessageUpdate(data);
-        setEditingMsg(null);
-        setEditValue("");
+        if (error) {
+          console.error("Message update error:", error);
+          showError("Send Failed", error.message || "Failed to update message.");
+        } else if (data) {
+          onMessageUpdate(data);
+          setEditingMsg(null);
+          setEditValue("");
+        }
       } else {
         // New message
         const { data, error } = await supabase
@@ -416,12 +424,23 @@ function ChatView({
           })
           .select()
           .single();
-        if (data) onNewMessage(data);
-        setInputValue("");
-        setReplyTo(null);
+        if (error) {
+          console.error("Message send error:", error);
+          showError("Send Failed", error.message || "Failed to send message.");
+        } else if (data) {
+          onNewMessage(data);
+          setInputValue("");
+          setReplyTo(null);
+          // Update ticket's updated_at and last_message
+          await supabase
+            .from("mc_support_tickets")
+            .update({ updated_at: new Date().toISOString(), last_message: inputValue.trim(), last_message_time: new Date().toISOString() })
+            .eq("id", ticket.id);
+        }
       }
     } catch (err) {
       console.error("Send failed:", err);
+      showError("Send Failed", "An unexpected error occurred. Please try again.");
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -434,15 +453,15 @@ function ChatView({
     if (!file) return;
     const isImage = file.type.startsWith("image/");
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "application/pdf"];
-    if (!allowed.includes(file.type)) { alert("Unsupported file type"); return; }
-    if (file.size > 10 * 1024 * 1024) { alert("File must be under 10MB"); return; }
+    if (!allowed.includes(file.type)) { showError("Unsupported File", "Please upload a PNG, JPG, WEBP, GIF, or PDF file."); return; }
+    if (file.size > 10 * 1024 * 1024) { showError("File Too Large", "File must be under 10MB."); return; }
 
     setSending(true);
     const ext = file.name.split(".").pop();
     const fileName = `${userId}/${ticket.id}/${Date.now()}.${ext}`;
 
     const { error: uploadError } = await supabase.storage.from("support-media").upload(fileName, file);
-    if (uploadError) { alert("Upload failed"); setSending(false); return; }
+    if (uploadError) { showError("Upload Failed", "Failed to upload file. Please try again."); setSending(false); return; }
 
     const { data: urlData } = supabase.storage.from("support-media").getPublicUrl(fileName);
 

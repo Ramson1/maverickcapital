@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, Shield, CheckCircle2, AlertCircle, Loader2, Wallet, TrendingUp, DollarSign, Copy, Check, Users, ChevronDown, Upload, X, Eye, EyeOff, User } from "lucide-react";
+import { Camera, Shield, CheckCircle2, AlertCircle, Loader2, Wallet, TrendingUp, DollarSign, Copy, Check, Users, ChevronDown, Upload, X, User, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { useToast } from "@/providers/ToastProvider";
 import { ProfileSkeleton } from "@/components/ui/PageSkeletons";
 
 interface Profile {
@@ -25,7 +26,7 @@ interface Profile {
   total_investment: number;
   total_profit: number;
   referral_code: string | null;
-  two_factor_enabled: boolean;
+  withdrawal_address: string | null;
   created_at: string;
 }
 
@@ -39,6 +40,7 @@ const kycLabels: Record<string, { label: string; variant: "success" | "warning" 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
+  const { error: showError, success: showSuccess } = useToast();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [editing, setEditing] = useState(false);
@@ -47,6 +49,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [withdrawalAddress, setWithdrawalAddress] = useState("");
+  const [savingAddress, setSavingAddress] = useState(false);
 
   // Expandable sections
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -57,13 +61,6 @@ export default function ProfilePage() {
   const [kycSelfieFile, setKycSelfieFile] = useState<File | null>(null);
   const [kycSubmitting, setKycSubmitting] = useState(false);
 
-  // 2FA state
-  const [twoFASetupPhase, setTwoFASetupPhase] = useState<"idle" | "setup" | "verify">("idle");
-  const [twoFASecret, setTwoFASecret] = useState("");
-  const [twoFACode, setTwoFACode] = useState("");
-  const [twoFAShowSecret, setTwoFAShowSecret] = useState(false);
-  const [twoFASubmitting, setTwoFASubmitting] = useState(false);
-
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) {
@@ -72,20 +69,31 @@ export default function ProfilePage() {
       }
       const { data, error } = await supabase
         .from("mc_profiles")
-        .select("full_name, phone, kyc_status, account_status, membership_level, avatar_url, wallet_balance, total_investment, total_profit, referral_code, two_factor_enabled, created_at")
+        .select("full_name, phone, kyc_status, account_status, membership_level, avatar_url, wallet_balance, total_investment, total_profit, referral_code, withdrawal_address, created_at")
         .eq("id", user.id)
         .single();
 
       if (!error && data) {
+        // Also compute total deposit from actual approved deposits (fallback if profile is out of sync)
+        const { data: approvedDeposits } = await supabase
+          .from("mc_deposits")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("status", "approved");
+        const depositsTotal = (approvedDeposits || []).reduce((sum, d) => sum + Number(d.amount), 0);
+        const profileTotalInvestment = Number(data.total_investment) || 0;
+        const actualTotalDeposit = Math.max(profileTotalInvestment, depositsTotal);
+
         setProfile({
           ...data,
           email: user.email || null,
           wallet_balance: Number(data.wallet_balance) || 0,
-          total_investment: Number(data.total_investment) || 0,
+          total_investment: actualTotalDeposit,
           total_profit: Number(data.total_profit) || 0,
         });
         setFullName(data.full_name || "");
         setPhone(data.phone || "");
+        setWithdrawalAddress(data.withdrawal_address || "");
       }
       setLoading(false);
     };
@@ -129,7 +137,7 @@ export default function ProfilePage() {
     total_investment: 0,
     total_profit: 0,
     referral_code: null,
-    two_factor_enabled: false,
+    withdrawal_address: null,
     created_at: new Date().toISOString(),
   };
 
@@ -152,33 +160,42 @@ export default function ProfilePage() {
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // KYC submission
+  // KYC submission - stores documents as base64 in database
   const handleKycSubmit = async () => {
     if (!user || !kycIdFile || !kycAddressFile || !kycSelfieFile) return;
     setKycSubmitting(true);
     try {
-      const bucket = "kyc-documents";
-      const uploadFile = async (file: File, prefix: string) => {
-        const ext = file.name.split(".").pop();
-        const path = `${user.id}/${prefix}_${Date.now()}.${ext}`;
-        const { error } = await supabase.storage.from(bucket).upload(path, file);
-        if (error) throw error;
-        return path;
-      };
+      // Convert files to base64
+      const fileToBase64 = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
 
-      const [idPath, addressPath, selfiePath] = await Promise.all([
-        uploadFile(kycIdFile, "id"),
-        uploadFile(kycAddressFile, "address"),
-        uploadFile(kycSelfieFile, "selfie"),
+      const [idData, addressData, selfieData] = await Promise.all([
+        fileToBase64(kycIdFile),
+        fileToBase64(kycAddressFile),
+        fileToBase64(kycSelfieFile),
       ]);
 
-      await supabase.from("mc_kyc_submissions").insert({
+      // Delete any existing pending submission for this user
+      await supabase.from("mc_kyc_submissions").delete().eq("user_id", user.id).eq("status", "pending");
+
+      // Insert new submission with base64 data
+      const { error: insertError } = await supabase.from("mc_kyc_submissions").insert({
         user_id: user.id,
-        id_document_path: idPath,
-        address_document_path: addressPath,
-        selfie_document_path: selfiePath,
+        id_document_data: idData,
+        address_document_data: addressData,
+        selfie_document_data: selfieData,
+        id_document_name: kycIdFile.name,
+        address_document_name: kycAddressFile.name,
+        selfie_document_name: kycSelfieFile.name,
         status: "pending",
       });
+
+      if (insertError) throw insertError;
 
       await supabase.from("mc_profiles").update({ kyc_status: "pending" }).eq("id", user.id);
       setProfile((prev) => prev ? { ...prev, kyc_status: "pending" } : prev);
@@ -186,55 +203,31 @@ export default function ProfilePage() {
       setKycAddressFile(null);
       setKycSelfieFile(null);
       setExpandedSection(null);
+      showSuccess("KYC Submitted", "Your documents have been submitted for verification.");
     } catch (err) {
       console.error("KYC submission failed:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to submit KYC documents. Please try again.";
+      showError("KYC Submission Failed", errorMessage);
     } finally {
       setKycSubmitting(false);
     }
   };
 
-  // 2FA setup
-  const generateSecret = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let secret = "";
-    for (let i = 0; i < 32; i++) secret += chars[Math.floor(Math.random() * chars.length)];
-    return secret;
-  };
-
-  const handleEnable2FA = () => {
-    setTwoFASecret(generateSecret());
-    setTwoFASetupPhase("setup");
-  };
-
-  const handleVerify2FA = async () => {
-    if (!user || twoFACode.length !== 6) return;
-    setTwoFASubmitting(true);
-    try {
-      await supabase.from("mc_profiles").update({ two_factor_enabled: true }).eq("id", user.id);
-      setProfile((prev) => prev ? { ...prev, two_factor_enabled: true } : prev);
-      setTwoFASetupPhase("idle");
-      setTwoFACode("");
-      setTwoFASecret("");
-      setExpandedSection(null);
-    } catch (err) {
-      console.error("2FA enable failed:", err);
-    } finally {
-      setTwoFASubmitting(false);
-    }
-  };
-
-  const handleDisable2FA = async () => {
+  // Withdrawal address
+  const handleSaveWithdrawalAddress = async () => {
     if (!user) return;
-    setTwoFASubmitting(true);
+    setSavingAddress(true);
     try {
-      await supabase.from("mc_profiles").update({ two_factor_enabled: false }).eq("id", user.id);
-      setProfile((prev) => prev ? { ...prev, two_factor_enabled: false } : prev);
-      setTwoFASetupPhase("idle");
+      await supabase
+        .from("mc_profiles")
+        .update({ withdrawal_address: withdrawalAddress.trim() || null, updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+      setProfile((prev) => prev ? { ...prev, withdrawal_address: withdrawalAddress.trim() || null } : prev);
       setExpandedSection(null);
     } catch (err) {
-      console.error("2FA disable failed:", err);
+      console.error("Failed to save withdrawal address:", err);
     } finally {
-      setTwoFASubmitting(false);
+      setSavingAddress(false);
     }
   };
 
@@ -386,84 +379,50 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* 2FA */}
+              {/* Withdrawal Settings */}
               <div>
-                <button onClick={() => toggleSection("2fa")} className="flex w-full items-center justify-between py-3 text-sm transition-colors hover:text-surface-900 dark:hover:text-white">
-                  <span className="text-surface-500">2FA</span>
+                <button onClick={() => toggleSection("withdrawal")} className="flex w-full items-center justify-between py-3 text-sm transition-colors hover:text-surface-900 dark:hover:text-white">
+                  <span className="text-surface-500">Withdrawal Address</span>
                   <div className="flex items-center gap-2">
-                    {p.two_factor_enabled ? (
-                      <span className="flex items-center gap-1 text-xs text-success-600"><Shield className="h-3.5 w-3.5" />Enabled</span>
+                    {p.withdrawal_address ? (
+                      <span className="flex items-center gap-1 text-xs text-success-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Set
+                      </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-xs text-surface-500"><Shield className="h-3.5 w-3.5" />Disabled</span>
+                      <span className="flex items-center gap-1 text-xs text-warning-600">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Not set
+                      </span>
                     )}
-                    <ChevronDown className={cn("h-3.5 w-3.5 text-surface-400 transition-transform", expandedSection === "2fa" && "rotate-180")} />
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-surface-400 transition-transform", expandedSection === "withdrawal" && "rotate-180")} />
                   </div>
                 </button>
-                {expandedSection === "2fa" && (
+                {expandedSection === "withdrawal" && (
                   <div className="pb-3">
                     <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
-                      {p.two_factor_enabled ? (
-                        <div className="space-y-3">
-                          <div className="flex items-start gap-2">
-                            <Shield className="mt-0.5 h-4 w-4 shrink-0 text-success-600" />
-                            <div>
-                              <p className="text-sm font-medium text-success-600">Two-factor authentication is enabled</p>
-                              <p className="mt-1 text-xs text-surface-500">Your account is protected with an extra layer of security. You'll need your authenticator app when signing in.</p>
-                            </div>
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-2">
+                          <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-brand-600 dark:text-brand-400" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-surface-700 dark:text-surface-300">USDT TRC20 Withdrawal Address</p>
+                            <p className="mt-1 text-xs text-surface-500">This address will be used for all withdrawal requests. Make sure it supports USDT on the TRC20 (Tron) network.</p>
                           </div>
-                          <Button size="sm" variant="destructive" onClick={handleDisable2FA} disabled={twoFASubmitting}>
-                            {twoFASubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-                            Disable 2FA
+                        </div>
+                        <Input
+                          placeholder="Enter your USDT TRC20 wallet address"
+                          value={withdrawalAddress}
+                          onChange={(e) => setWithdrawalAddress(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={handleSaveWithdrawalAddress} disabled={savingAddress || !withdrawalAddress.trim()}>
+                            {savingAddress ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Saving...</> : <><Save className="mr-2 h-3.5 w-3.5" />Save Address</>}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setWithdrawalAddress(p.withdrawal_address || ""); setExpandedSection(null); }}>
+                            Cancel
                           </Button>
                         </div>
-                      ) : twoFASetupPhase === "idle" ? (
-                        <div className="space-y-3">
-                          <div className="flex items-start gap-2">
-                            <Shield className="mt-0.5 h-4 w-4 shrink-0 text-surface-400" />
-                            <div>
-                              <p className="text-sm font-medium text-surface-700 dark:text-surface-300">Protect your account</p>
-                              <p className="mt-1 text-xs text-surface-500">Two-factor authentication adds an extra layer of security. You'll need an authenticator app like Google Authenticator or Authy.</p>
-                            </div>
-                          </div>
-                          <Button size="sm" onClick={handleEnable2FA}>Enable 2FA</Button>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-xs font-medium text-surface-700 dark:text-surface-300">1. Add this secret to your authenticator app:</p>
-                            <div className="mt-1 flex items-center gap-2">
-                              <code className="flex-1 rounded bg-surface-200 px-3 py-2 font-mono text-xs text-surface-900 dark:bg-surface-700 dark:text-white">
-                                {twoFAShowSecret ? twoFASecret : "••••••••••••••••"}
-                              </code>
-                              <button onClick={() => setTwoFAShowSecret(!twoFAShowSecret)} className="rounded p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-600">
-                                {twoFAShowSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </button>
-                              <button onClick={() => navigator.clipboard.writeText(twoFASecret)} className="rounded p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-600">
-                                <Copy className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-surface-700 dark:text-surface-300">2. Enter the 6-digit code from your app:</p>
-                            <div className="mt-1 flex items-center gap-2">
-                              <Input
-                                value={twoFACode}
-                                onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                placeholder="000000"
-                                maxLength={6}
-                                className="w-32 font-mono tracking-widest text-center"
-                              />
-                              <Button size="sm" onClick={handleVerify2FA} disabled={twoFACode.length !== 6 || twoFASubmitting}>
-                                {twoFASubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-                                Verify & Enable
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => { setTwoFASetupPhase("idle"); setTwoFACode(""); setTwoFASecret(""); }}>
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -527,14 +486,14 @@ export default function ProfilePage() {
                     </div>
                     <span className="text-sm text-surface-500">Wallet Balance</span>
                   </div>
-                  <p className="mt-2 text-xl font-bold text-surface-900 dark:text-white">{formatCurrency(p.wallet_balance)}</p>
+                  <p className="mt-2 text-xl font-bold text-surface-900 dark:text-white">{formatCurrency(p.total_investment + p.total_profit)}</p>
                 </div>
                 <div className="rounded-lg border border-surface-200 p-4 dark:border-surface-700">
                   <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-50 dark:bg-success-500/10">
                       <TrendingUp className="h-4 w-4 text-success-600 dark:text-success-400" />
                     </div>
-                    <span className="text-sm text-surface-500">Total Investment</span>
+                    <span className="text-sm text-surface-500">Total Deposit</span>
                   </div>
                   <p className="mt-2 text-xl font-bold text-surface-900 dark:text-white">{formatCurrency(p.total_investment)}</p>
                 </div>
@@ -600,9 +559,15 @@ function KycUploadForm({
     <div className="space-y-1">
       <label className="text-xs font-medium text-surface-600 dark:text-surface-400">{label}</label>
       <div className="flex items-center gap-2">
-        <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-surface-200 bg-white px-3 py-2 text-xs text-surface-500 transition-colors hover:border-brand-300 hover:bg-brand-50/30 dark:border-surface-600 dark:bg-surface-700 dark:hover:border-brand-600 dark:hover:bg-brand-500/5">
+        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden rounded-lg border border-surface-200 bg-white px-3 py-2 text-xs text-surface-500 transition-colors hover:border-brand-300 hover:bg-brand-50/30 dark:border-surface-600 dark:bg-surface-700 dark:hover:border-brand-600 dark:hover:bg-brand-500/5">
           <Upload className="h-3.5 w-3.5 shrink-0" />
-          {file ? <span className="truncate text-surface-700 dark:text-surface-300">{file.name}</span> : <span>Choose file...</span>}
+          {file ? (
+            <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300" title={file.name}>
+              {file.name}
+            </span>
+          ) : (
+            <span>Choose file...</span>
+          )}
           <input type="file" accept={accept} className="hidden" onChange={(e) => onChange(e.target.files?.[0] || null)} />
         </label>
         {file && (

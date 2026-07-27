@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,48 +8,43 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Search, Download, AlertTriangle, Plus, X, AlertCircle, Loader2,
-  Copy, Check, Wallet, ArrowRight, Upload, FileImage, Trash2,
+  Copy, Check, FileImage, Trash2, ArrowRight, ArrowLeft, Clock,
+  TrendingUp, Shield, Lock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useHardCap } from "@/hooks/useHardCap";
 import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
-import { useAccount, useSendTransaction, useBalance } from "wagmi";
-import { parseEther } from "viem";
-import { WalletButton } from "@/components/web3/WalletButton";
+import Link from "next/link";
 
-// ─── Admin wallet addresses (from env) ───────────────────────────────
-const ADMIN_WALLETS: Record<string, { address: string; currency: string; networks: string[] }>[] = [
-  { USDT: { address: process.env.NEXT_PUBLIC_ETHEREUM_WALLET || "", currency: "USDT", networks: ["ERC20 (Ethereum)"] } },
-  { USDT_TRC20: { address: process.env.NEXT_PUBLIC_TRON_WALLET || "", currency: "USDT", networks: ["TRC20 (Tron)"] } },
-  { USDT_POLYGON: { address: process.env.NEXT_PUBLIC_POLYGON_WALLET || "", currency: "USDT", networks: ["Polygon"] } },
-  { USDT_BSC: { address: process.env.NEXT_PUBLIC_ETHEREUM_WALLET || "", currency: "USDT", networks: ["BSC (BEP20)"] } },
-  { BTC: { address: process.env.NEXT_PUBLIC_BITCOIN_WALLET || "", currency: "BTC", networks: ["Bitcoin"] } },
-  { ETH: { address: process.env.NEXT_PUBLIC_ETHEREUM_WALLET || "", currency: "ETH", networks: ["Ethereum"] } },
-  { SOL: { address: process.env.NEXT_PUBLIC_SOLANA_WALLET || "", currency: "SOL", networks: ["Solana"] } },
-  { XRP: { address: process.env.NEXT_PUBLIC_XRP_WALLET || "", currency: "XRP", networks: ["XRP Ledger"] } },
-  { DOGE: { address: process.env.NEXT_PUBLIC_DOGECOIN_WALLET || "", currency: "DOGE", networks: ["Dogecoin"] } },
-  { LTC: { address: process.env.NEXT_PUBLIC_LITECOIN_WALLET || "", currency: "LTC", networks: ["Litecoin"] } },
-  { BCH: { address: process.env.NEXT_PUBLIC_BITCOIN_CASH_WALLET || "", currency: "BCH", networks: ["Bitcoin Cash"] } },
-  { AVAX: { address: process.env.NEXT_PUBLIC_AVALANCHE_WALLET || "", currency: "AVAX", networks: ["Avalanche (C-Chain)"] } },
-  { FTM: { address: process.env.NEXT_PUBLIC_FANTOM_WALLET || "", currency: "FTM", networks: ["Fantom"] } },
-  { ARB: { address: process.env.NEXT_PUBLIC_ARBITRUM_WALLET || "", currency: "ARB", networks: ["Arbitrum"] } },
-  { OP: { address: process.env.NEXT_PUBLIC_OPTIMISM_WALLET || "", currency: "OP", networks: ["Optimism"] } },
-  { BASE: { address: process.env.NEXT_PUBLIC_BASE_WALLET || "", currency: "BASE", networks: ["Base"] } },
-];
+// ─── USDT TRC20 Only ─────────────────────────────────────────────────
+const DEPOSIT_CURRENCY = "USDT";
+const DEPOSIT_NETWORK = "TRC20 (Tron)";
+const ADMIN_TRON_WALLET = process.env.NEXT_PUBLIC_TRON_WALLET || "";
+const LS_KEY = (userId: string) => `mc_deposit_draft_${userId}`;
+const MIN_DEPOSIT = 50; // Minimum deposit amount in USDT
 
-// Flatten into a selectable list
-const DEPOSIT_OPTIONS = ADMIN_WALLETS.map((entry) => {
-  const key = Object.keys(entry)[0];
-  const val = entry[key];
-  return { id: key, ...val };
-});
+// ─── Investment Plans ─────────────────────────────────────────────────
+const INVESTMENT_PLANS = {
+  standard: {
+    name: "Standard",
+    minInvestment: 50,
+    lockPeriodMonths: 1,
+    roiPercent: 10,
+    description: "1-month lock • 10% return",
+    icon: TrendingUp,
+  },
+  premium: {
+    name: "Premium",
+    minInvestment: 50,
+    lockPeriodMonths: 3,
+    roiPercent: 12,
+    description: "3-month lock • 12% return",
+    icon: Shield,
+  },
+} as const;
 
-// USDT-only options for manual deposit
-const USDT_DEPOSIT_OPTIONS = DEPOSIT_OPTIONS.filter((opt) => opt.currency === "USDT");
-
-// EVM-compatible chains for Web3 deposit
-const EVM_CURRENCIES = ["ETH", "USDT", "AVAX", "FTM", "ARB", "OP", "BASE", "MATIC"];
+type PlanKey = keyof typeof INVESTMENT_PLANS;
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface Deposit {
@@ -57,9 +52,13 @@ interface Deposit {
   amount: number;
   currency: string;
   network: string;
+  plan_name: string | null;
+  lock_period_months: number | null;
+  lock_end_date: string | null;
   tx_hash: string | null;
   status: string;
   proof_url: string | null;
+  proof_data: string | null;
   submitted_at: string;
 }
 
@@ -100,29 +99,33 @@ export default function DepositsPage() {
 
   // Deposit form state
   const [showDepositForm, setShowDepositForm] = useState(false);
-  const [depositMethod, setDepositMethod] = useState<"manual" | "web3" | null>(null);
 
   // Withdrawal form state
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
-  const [withdrawalForm, setWithdrawalForm] = useState({
-    amount: "",
-    currency: "USDT",
-    network: "TRC20",
-    destination_address: "",
-  });
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
+
+  // Profile data for withdrawal
+  const [withdrawalAddress, setWithdrawalAddress] = useState<string | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [totalInvestment, setTotalInvestment] = useState(0);
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [unlockedInvestments, setUnlockedInvestments] = useState(0);
 
   useEffect(() => {
     if (!user) return;
 
     const fetchData = async () => {
-      const { data: depositsData } = await supabase
+      const { data: depositsData, error: depositsError } = await supabase
         .from("mc_deposits")
         .select("*")
         .eq("user_id", user.id)
         .order("submitted_at", { ascending: false });
 
+      if (depositsError) {
+        console.error("Deposits fetch error:", depositsError);
+      }
       if (depositsData) {
         setDeposits(depositsData.map((d) => ({ ...d, amount: Number(d.amount) })));
       }
@@ -137,20 +140,52 @@ export default function DepositsPage() {
         setWithdrawals(withdrawalsData.map((w) => ({ ...w, amount: Number(w.amount) })));
       }
 
+      // Fetch profile for withdrawal address and balances
+      const { data: profileData } = await supabase
+        .from("mc_profiles")
+        .select("withdrawal_address, wallet_balance, total_investment, total_profit")
+        .eq("id", user.id)
+        .single();
+
+      if (profileData) {
+        setWithdrawalAddress(profileData.withdrawal_address || null);
+        setWalletBalance(Number(profileData.wallet_balance) || 0);
+        setTotalInvestment(Number(profileData.total_investment) || 0);
+        setTotalProfit(Number(profileData.total_profit) || 0);
+      }
+
+      // Calculate unlocked investment value
+      const now = new Date().toISOString();
+      const { data: investmentsData } = await supabase
+        .from("mc_deposits")
+        .select("amount, lock_end_date, status")
+        .eq("user_id", user.id)
+        .eq("status", "approved")
+        .not("lock_end_date", "is", null);
+
+      if (investmentsData) {
+        const unlocked = investmentsData
+          .filter((inv) => new Date(inv.lock_end_date) <= new Date())
+          .reduce((sum, inv) => sum + Number(inv.amount), 0);
+        setUnlockedInvestments(unlocked);
+      }
+
       setLoading(false);
     };
 
     fetchData();
   }, [user, supabase]);
 
+  // Available balance for withdrawal = wallet_balance (profits) + unlocked investments
+  const availableBalance = walletBalance + unlockedInvestments;
+
   // ─── Withdrawal submit ─────────────────────────────────────────────
   const handleSubmitWithdrawal = async () => {
     if (!user) return;
-    const amount = parseFloat(withdrawalForm.amount);
+    const amount = parseFloat(withdrawalAmount);
     if (!amount || amount <= 0) { setWithdrawalError("Please enter a valid amount"); return; }
-    if (!withdrawalForm.destination_address.trim()) { setWithdrawalError("Please enter a wallet address"); return; }
-    if (!withdrawalForm.currency.trim()) { setWithdrawalError("Please enter a currency"); return; }
-    if (!withdrawalForm.network.trim()) { setWithdrawalError("Please enter a network"); return; }
+    if (!withdrawalAddress) { setWithdrawalError("Please set your withdrawal address in your Profile first"); return; }
+    if (amount > availableBalance) { setWithdrawalError(`Insufficient balance. Available: ${formatCurrency(availableBalance)}`); return; }
 
     setSubmitting(true);
     setWithdrawalError(null);
@@ -160,9 +195,9 @@ export default function DepositsPage() {
       .insert({
         user_id: user.id,
         amount,
-        currency: withdrawalForm.currency,
-        network: withdrawalForm.network,
-        destination_address: withdrawalForm.destination_address.trim(),
+        currency: DEPOSIT_CURRENCY,
+        network: DEPOSIT_NETWORK,
+        destination_address: withdrawalAddress,
         status: "pending",
       })
       .select()
@@ -176,7 +211,7 @@ export default function DepositsPage() {
 
     if (data) {
       setWithdrawals((prev) => [{ ...data, amount: Number(data.amount) }, ...prev]);
-      setWithdrawalForm({ amount: "", currency: "USDT", network: "TRC20", destination_address: "" });
+      setWithdrawalAmount("");
       setShowWithdrawalForm(false);
     }
     setSubmitting(false);
@@ -274,7 +309,7 @@ export default function DepositsPage() {
                     if (data) setDeposits(data.map((d) => ({ ...d, amount: Number(d.amount) })));
                   });
               }}
-              onClose={() => { setShowDepositForm(false); setDepositMethod(null); }}
+              onClose={() => setShowDepositForm(false)}
             />
           )}
 
@@ -314,29 +349,36 @@ export default function DepositsPage() {
                   <thead>
                     <tr className="border-b border-surface-200 dark:border-surface-700">
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Currency</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Plan</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Network</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Tx Hash</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Proof</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Lock Until</th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
                     {filteredDeposits.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-sm text-surface-400">No deposits found</td>
+                        <td colSpan={8} className="px-6 py-12 text-center text-sm text-surface-400">No deposits found</td>
                       </tr>
                     ) : (
                       filteredDeposits.map((dep) => (
                         <tr key={dep.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
                           <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(dep.amount)}</td>
-                          <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{dep.currency}</td>
+                          <td className="px-6 py-4">
+                            {dep.plan_name ? (
+                              <Badge variant="default" className="capitalize text-xs">{dep.plan_name}</Badge>
+                            ) : (
+                              <span className="text-xs text-surface-400">-</span>
+                            )}
+                          </td>
                           <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{dep.network}</td>
                           <td className="px-6 py-4 font-mono text-sm text-surface-600 dark:text-surface-400">{dep.tx_hash || "-"}</td>
                           <td className="px-6 py-4">
-                            {dep.proof_url ? (
-                              <a href={dep.proof_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+                            {(dep.proof_data || dep.proof_url) ? (
+                              <a href={(dep.proof_data || dep.proof_url) ?? "#"} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
                                 <FileImage className="h-3.5 w-3.5" />
                                 View
                               </a>
@@ -346,6 +388,16 @@ export default function DepositsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <Badge variant={depositStatusVariant[dep.status] || "default"}>{dep.status}</Badge>
+                          </td>
+                          <td className="px-6 py-4 text-surface-600 dark:text-surface-400">
+                            {dep.lock_end_date ? (
+                              <span className={cn(
+                                "text-xs",
+                                new Date(dep.lock_end_date) > new Date() ? "text-warning-600 dark:text-warning-400" : "text-success-600 dark:text-success-400"
+                              )}>
+                                {new Date(dep.lock_end_date).toLocaleDateString()}
+                              </span>
+                            ) : "-"}
                           </td>
                           <td className="px-6 py-4 text-surface-600 dark:text-surface-400">{new Date(dep.submitted_at).toLocaleDateString()}</td>
                         </tr>
@@ -384,33 +436,82 @@ export default function DepositsPage() {
                     {withdrawalError}
                   </div>
                 )}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Amount (USD)</label>
-                    <Input type="number" placeholder="0.00" value={withdrawalForm.amount} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, amount: e.target.value })} min="0" step="0.01" />
+
+                {/* No withdrawal address warning */}
+                {!withdrawalAddress ? (
+                  <div className="flex items-start gap-3 rounded-lg border border-warning-200 bg-warning-50 p-4 dark:border-warning-800 dark:bg-warning-500/10">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning-600 dark:text-warning-400" />
+                    <div>
+                      <p className="text-sm font-medium text-warning-800 dark:text-warning-300">No withdrawal address set</p>
+                      <p className="mt-1 text-xs text-warning-600 dark:text-warning-400">
+                        Please set your USDT TRC20 wallet address in your <Link href="/dashboard/profile" className="font-semibold underline">Profile settings</Link> before requesting a withdrawal.
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Wallet Address</label>
-                    <Input placeholder="Enter your wallet address" value={withdrawalForm.destination_address} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, destination_address: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Currency</label>
-                    <Input placeholder="e.g. USDT, BTC" value={withdrawalForm.currency} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, currency: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Network</label>
-                    <Input placeholder="e.g. TRC20, ERC20" value={withdrawalForm.network} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, network: e.target.value })} />
-                  </div>
-                </div>
-                <p className="text-xs text-surface-500 dark:text-surface-400">
-                  Your withdrawal request will be reviewed and processed by the admin team.
-                </p>
-                <div className="flex gap-3">
-                  <Button onClick={handleSubmitWithdrawal} disabled={submitting || !withdrawalForm.amount || !withdrawalForm.destination_address}>
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Request"}
-                  </Button>
-                  <Button variant="outline" onClick={() => { setShowWithdrawalForm(false); setWithdrawalError(null); }}>Cancel</Button>
-                </div>
+                ) : (
+                  <>
+                    {/* Available balance */}
+                    <div className="rounded-lg border border-success-200 bg-success-50 p-3 dark:border-success-800 dark:bg-success-500/10">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-success-600 dark:text-success-400">Available for Withdrawal</p>
+                          <p className="text-lg font-bold text-success-800 dark:text-success-300">{formatCurrency(availableBalance)}</p>
+                        </div>
+                        <div className="text-right text-xs text-success-600 dark:text-success-400">
+                          <p>Profits: {formatCurrency(walletBalance)}</p>
+                          <p>Unlocked: {formatCurrency(unlockedInvestments)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Destination address (from profile) */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Withdrawal Address</label>
+                      <div className="flex items-center gap-2 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
+                        <span className="flex-1 break-all font-mono text-sm text-surface-900 dark:text-white">{withdrawalAddress}</span>
+                        <Link href="/dashboard/profile" className="shrink-0 text-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400">
+                          Edit
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Amount */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Amount (USDT)</label>
+                      <Input
+                        type="number"
+                        placeholder="0.00"
+                        value={withdrawalAmount}
+                        onChange={(e) => setWithdrawalAmount(e.target.value)}
+                        min="0"
+                        step="0.01"
+                        max={availableBalance}
+                      />
+                      {withdrawalAmount && parseFloat(withdrawalAmount) > availableBalance && (
+                        <p className="text-xs text-danger-600 dark:text-danger-400">Amount exceeds available balance</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
+                      <span className="text-xs font-medium text-surface-500 dark:text-surface-400">Currency:</span>
+                      <span className="text-xs font-semibold text-surface-900 dark:text-white">USDT</span>
+                      <span className="text-xs text-surface-400">|</span>
+                      <span className="text-xs font-medium text-surface-500 dark:text-surface-400">Network:</span>
+                      <span className="text-xs font-semibold text-surface-900 dark:text-white">TRC20 (Tron)</span>
+                    </div>
+
+                    <p className="text-xs text-surface-500 dark:text-surface-400">
+                      Your withdrawal request will be reviewed and processed by the admin team.
+                    </p>
+
+                    <div className="flex gap-3">
+                      <Button onClick={handleSubmitWithdrawal} disabled={submitting || !withdrawalAmount || parseFloat(withdrawalAmount) <= 0 || parseFloat(withdrawalAmount) > availableBalance}>
+                        {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Request"}
+                      </Button>
+                      <Button variant="outline" onClick={() => { setShowWithdrawalForm(false); setWithdrawalError(null); }}>Cancel</Button>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
@@ -485,7 +586,7 @@ export default function DepositsPage() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Deposit Form Component (Manual + Web3)
+// Deposit Form Component (USDT TRC20 only — 2-step flow)
 // ═══════════════════════════════════════════════════════════════════════
 function DepositForm({
   supabase,
@@ -498,8 +599,6 @@ function DepositForm({
   onDepositSubmitted: () => void;
   onClose: () => void;
 }) {
-  const [method, setMethod] = useState<"manual" | "web3" | null>(null);
-
   return (
     <Card>
       <CardContent className="space-y-4 p-5">
@@ -507,82 +606,72 @@ function DepositForm({
           <h3 className="font-semibold text-surface-900 dark:text-white">New Deposit</h3>
           <button onClick={onClose}><X className="h-4 w-4 text-surface-500" /></button>
         </div>
-
-        {!method ? (
-          /* ── Method Selection ── */
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <button
-              onClick={() => setMethod("manual")}
-              className="flex flex-col items-center gap-3 rounded-xl border border-surface-200 p-6 transition-all hover:border-brand-300 hover:bg-brand-50 dark:border-surface-700 dark:hover:border-brand-600 dark:hover:bg-brand-500/10"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
-                <Upload className="h-6 w-6 text-brand-600 dark:text-brand-400" />
-              </div>
-              <div className="text-center">
-                <p className="font-semibold text-surface-900 dark:text-white">Manual Deposit</p>
-                <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
-                  Send funds to our wallet address and submit the transaction receipt for confirmation
-                </p>
-              </div>
-            </button>
-            <button
-              onClick={() => setMethod("web3")}
-              className="flex flex-col items-center gap-3 rounded-xl border border-surface-200 p-6 transition-all hover:border-brand-300 hover:bg-brand-50 dark:border-surface-700 dark:hover:border-brand-600 dark:hover:bg-brand-500/10"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success-50 dark:bg-success-500/10">
-                <Wallet className="h-6 w-6 text-success-600 dark:text-success-500" />
-              </div>
-              <div className="text-center">
-                <p className="font-semibold text-surface-900 dark:text-white">Web3 Deposit</p>
-                <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
-                  Connect your wallet and send funds directly on-chain
-                </p>
-              </div>
-            </button>
-          </div>
-        ) : (
-          <>
-            <button
-              onClick={() => setMethod(null)}
-              className="text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400"
-            >
-              &larr; Back to method selection
-            </button>
-            {method === "manual" ? (
-              <ManualDepositForm supabase={supabase} userId={userId} onDone={onDepositSubmitted} />
-            ) : (
-              <Web3DepositForm supabase={supabase} userId={userId} onDone={onDepositSubmitted} />
-            )}
-          </>
-        )}
+        <ManualDepositForm
+          supabase={supabase}
+          userId={userId}
+          onDone={onDepositSubmitted}
+          onCancel={onClose}
+        />
       </CardContent>
     </Card>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Manual Deposit Form
+// Manual Deposit Form — 2-step flow with localStorage persistence
+// Step 1: Enter amount → see payment details → "I've Made the Payment"
+// Step 2: Enter tx hash + upload proof → Submit
 // ═══════════════════════════════════════════════════════════════════════
+type DepositDraft = {
+  step: 1 | 2;
+  amount: string;
+  plan: PlanKey;
+  txHash: string;
+  proofFileName: string | null;
+  proofFileSize: number | null;
+};
+
 function ManualDepositForm({
   supabase,
   userId,
   onDone,
+  onCancel,
 }: {
   supabase: ReturnType<typeof createClient>;
   userId: string;
   onDone: () => void;
+  onCancel: () => void;
 }) {
-  const [selectedOption, setSelectedOption] = useState(USDT_DEPOSIT_OPTIONS[0]);
-  const [amount, setAmount] = useState("");
-  const [txHash, setTxHash] = useState("");
+  // Load draft from localStorage
+  const loadDraft = (): DepositDraft => {
+    if (typeof window === "undefined") return { step: 1, amount: "", plan: "standard", txHash: "", proofFileName: null, proofFileSize: null };
+    try {
+      const saved = localStorage.getItem(LS_KEY(userId));
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { step: 1, amount: "", plan: "standard", txHash: "", proofFileName: null, proofFileSize: null };
+  };
+
+  const [draft, setDraftState] = useState<DepositDraft>(loadDraft);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Persist draft to localStorage whenever it changes
+  const saveDraft = (next: DepositDraft) => {
+    setDraftState(next);
+    try { localStorage.setItem(LS_KEY(userId), JSON.stringify(next)); } catch {}
+  };
+
+  const clearDraft = () => {
+    setDraftState({ step: 1, amount: "", plan: "standard", txHash: "", proofFileName: null, proofFileSize: null });
+    try { localStorage.removeItem(LS_KEY(userId)); } catch {}
+  };
+
   const copyAddress = () => {
-    navigator.clipboard.writeText(selectedOption.address);
+    navigator.clipboard.writeText(ADMIN_TRON_WALLET);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -590,20 +679,19 @@ function ManualDepositForm({
   const handleProofSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Validate file type
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
     if (!allowedTypes.includes(file.type)) {
       setError("Please upload a PNG, JPG, WEBP, or PDF file");
       return;
     }
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError("File must be smaller than 5MB");
       return;
     }
     setError(null);
     setProofFile(file);
-    // Create preview for images
+    const next = { ...draft, proofFileName: file.name, proofFileSize: file.size };
+    saveDraft(next);
     if (file.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (ev) => setProofPreview(ev.target?.result as string);
@@ -616,46 +704,70 @@ function ManualDepositForm({
   const handleRemoveProof = () => {
     setProofFile(null);
     setProofPreview(null);
+    const next = { ...draft, proofFileName: null, proofFileSize: null };
+    saveDraft(next);
   };
 
-  const handleSubmit = async () => {
-    const parsedAmount = parseFloat(amount);
+  // Step 1 → Step 2
+  const goToStep2 = () => {
+    const parsedAmount = parseFloat(draft.amount);
+    const plan = INVESTMENT_PLANS[draft.plan];
     if (!parsedAmount || parsedAmount <= 0) { setError("Please enter a valid amount"); return; }
-    if (!txHash.trim()) { setError("Please enter the transaction hash"); return; }
+    if (parsedAmount < MIN_DEPOSIT) { setError(`Minimum deposit amount is $${MIN_DEPOSIT}`); return; }
+    if (parsedAmount < plan.minInvestment) { setError(`Minimum investment for ${plan.name} plan is $${plan.minInvestment}`); return; }
+    setError(null);
+    const next = { ...draft, step: 2 as const };
+    saveDraft(next);
+  };
+
+  // Step 2 → Step 1
+  const goToStep1 = () => {
+    setError(null);
+    const next = { ...draft, step: 1 as const };
+    saveDraft(next);
+  };
+
+  // Final submit
+  const handleSubmit = async () => {
+    const parsedAmount = parseFloat(draft.amount);
+    if (!parsedAmount || parsedAmount <= 0) { setError("Please enter a valid amount"); return; }
+    if (parsedAmount < MIN_DEPOSIT) { setError(`Minimum deposit amount is $${MIN_DEPOSIT}`); return; }
+    if (!draft.txHash.trim()) { setError("Please enter the transaction hash"); return; }
     if (!proofFile) { setError("Please upload proof of payment"); return; }
 
     setSubmitting(true);
     setError(null);
 
-    // Upload proof of payment to Supabase Storage
-    const fileExt = proofFile.name.split(".").pop();
-    const fileName = `${userId}/${Date.now()}.${fileExt}`;
-    const { error: uploadError } = await supabase.storage
-      .from("deposit-proofs")
-      .upload(fileName, proofFile);
-
-    if (uploadError) {
-      console.error("Proof upload error:", uploadError);
-      setError("Failed to upload proof. Please try again.");
+    // Convert proof file to base64 for direct database storage
+    const proofData = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(proofFile);
+    }).catch((err) => {
+      setError(err.message || "Failed to read proof file");
       setSubmitting(false);
-      return;
-    }
+      return null;
+    });
+    if (!proofData) return;
 
-    const { data: urlData } = supabase.storage
-      .from("deposit-proofs")
-      .getPublicUrl(fileName);
-
-    const proofUrl = urlData?.publicUrl || "";
+    // Calculate lock end date
+    const plan = INVESTMENT_PLANS[draft.plan];
+    const lockEndDate = new Date();
+    lockEndDate.setMonth(lockEndDate.getMonth() + plan.lockPeriodMonths);
 
     const { error: insertError } = await supabase
       .from("mc_deposits")
       .insert({
         user_id: userId,
         amount: parsedAmount,
-        currency: selectedOption.currency,
-        network: selectedOption.networks[0],
-        tx_hash: txHash.trim(),
-        proof_url: proofUrl,
+        currency: DEPOSIT_CURRENCY,
+        network: DEPOSIT_NETWORK,
+        plan_name: draft.plan,
+        lock_period_months: plan.lockPeriodMonths,
+        lock_end_date: lockEndDate.toISOString(),
+        tx_hash: draft.txHash.trim(),
+        proof_data: proofData,
         status: "pending",
       });
 
@@ -665,9 +777,12 @@ function ManualDepositForm({
       return;
     }
 
+    // Clear draft and finish
+    clearDraft();
     onDone();
   };
 
+  // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
       {error && (
@@ -677,235 +792,258 @@ function ManualDepositForm({
         </div>
       )}
 
-      {/* Step 1: Select currency */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">1. Select Network</label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {USDT_DEPOSIT_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setSelectedOption(opt)}
-              className={cn(
-                "rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
-                selectedOption.id === opt.id
-                  ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
-                  : "border-surface-200 text-surface-600 hover:border-brand-300 dark:border-surface-700 dark:text-surface-400 dark:hover:border-brand-600"
-              )}
-            >
-              {opt.currency}
-              <span className="mt-0.5 block text-[10px] opacity-70">{opt.networks[0]}</span>
-            </button>
-          ))}
+      {/* Step indicator */}
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+          draft.step === 1
+            ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+            : "bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400"
+        )}>
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-current/10 text-[10px] font-bold">1</span>
+          Payment Details
+        </div>
+        <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
+        <div className={cn(
+          "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium",
+          draft.step === 2
+            ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+            : "bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400"
+        )}>
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-current/10 text-[10px] font-bold">2</span>
+          Upload Proof
         </div>
       </div>
 
-      {/* Step 2: Send to this address */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">2. Send USDT to this address</label>
-        <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 p-3 dark:border-brand-800 dark:bg-brand-500/10">
-          <p className="flex-1 break-all font-mono text-sm text-surface-900 dark:text-white">
-            {selectedOption.address}
-          </p>
-          <button
-            onClick={copyAddress}
-            className="shrink-0 rounded-md p-2 transition-colors hover:bg-brand-100 dark:hover:bg-brand-500/20"
-          >
-            {copied ? <Check className="h-4 w-4 text-success-600" /> : <Copy className="h-4 w-4 text-brand-600 dark:text-brand-400" />}
-          </button>
-        </div>
-        <p className="text-xs text-surface-500 dark:text-surface-400">
-          Only send <strong>USDT</strong> on the <strong>{selectedOption.networks[0]}</strong> network to this address.
-        </p>
-      </div>
-
-      {/* Step 3: Enter details */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">3. Enter deposit details</label>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {draft.step === 1 ? (
+        /* ═══ STEP 1: Select plan, enter amount & see payment details ═══ */
+        <div className="space-y-4">
+          {/* Plan Selection */}
           <div className="space-y-2">
-            <label className="text-xs text-surface-500">Amount (USD)</label>
-            <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} min="0" step="0.01" />
+            <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Select Investment Plan</label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(Object.entries(INVESTMENT_PLANS) as [PlanKey, typeof INVESTMENT_PLANS[PlanKey]][]).map(([key, plan]) => {
+                const PlanIcon = plan.icon;
+                const isSelected = draft.plan === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => saveDraft({ ...draft, plan: key })}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl border p-4 text-left transition-all",
+                      isSelected
+                        ? "border-brand-500 bg-brand-50 dark:border-brand-600 dark:bg-brand-500/10"
+                        : "border-surface-200 hover:border-brand-300 dark:border-surface-700 dark:hover:border-brand-600"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                      isSelected ? "bg-brand-100 dark:bg-brand-500/20" : "bg-surface-100 dark:bg-surface-800"
+                    )}>
+                      <PlanIcon className={cn("h-5 w-5", isSelected ? "text-brand-600 dark:text-brand-400" : "text-surface-500")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className={cn("font-semibold", isSelected ? "text-brand-700 dark:text-brand-400" : "text-surface-900 dark:text-white")}>
+                          {plan.name}
+                        </p>
+                        {key === "premium" && (
+                          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-400">POPULAR</span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-400">{plan.description}</p>
+                      <p className="mt-1 text-[11px] text-surface-400 dark:text-surface-500">Min: ${plan.minInvestment}</p>
+                    </div>
+                    {isSelected && (
+                      <Check className="h-5 w-5 shrink-0 text-brand-600 dark:text-brand-400" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-xs text-surface-500">Transaction Hash</label>
-            <Input placeholder="Enter tx hash from your transaction" value={txHash} onChange={(e) => setTxHash(e.target.value)} />
-          </div>
-        </div>
-      </div>
 
-      {/* Step 4: Upload proof of payment */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">4. Upload Proof of Payment</label>
-        {!proofFile ? (
-          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-surface-300 p-6 transition-colors hover:border-brand-400 hover:bg-brand-50/50 dark:border-surface-600 dark:hover:border-brand-500 dark:hover:bg-brand-500/5">
-            <FileImage className="h-8 w-8 text-surface-400 dark:text-surface-500" />
-            <p className="text-sm font-medium text-surface-600 dark:text-surface-400">
-              Click to upload or drag and drop
-            </p>
-            <p className="text-xs text-surface-400 dark:text-surface-500">
-              PNG, JPG, WEBP, or PDF (max 5MB)
-            </p>
-            <input
-              type="file"
-              accept=".png,.jpg,.jpeg,.webp,.pdf"
-              className="hidden"
-              onChange={handleProofSelect}
+          {/* Amount input */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Deposit Amount (USDT)</label>
+            <Input
+              type="number"
+              placeholder="Enter amount in USDT"
+              value={draft.amount}
+              onChange={(e) => saveDraft({ ...draft, amount: e.target.value })}
+              min="0"
+              step="0.01"
             />
-          </label>
-        ) : (
-          <div className="flex items-start gap-3 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
-            {proofPreview ? (
-              <img src={proofPreview} alt="Proof preview" className="h-16 w-16 rounded-md object-cover" />
+            {draft.amount && parseFloat(draft.amount) > 0 && (
+              <p className="text-xs text-surface-500 dark:text-surface-400">
+                Expected return: <strong className="text-success-600">{formatCurrency(parseFloat(draft.amount) * (INVESTMENT_PLANS[draft.plan].roiPercent / 100))}</strong> after {INVESTMENT_PLANS[draft.plan].lockPeriodMonths}-month lock
+              </p>
+            )}
+          </div>
+
+          {/* Payment details card */}
+          <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-800 dark:bg-brand-500/5">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-500/20">
+                <Copy className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-surface-900 dark:text-white">Send USDT to this address</p>
+                <p className="text-xs text-surface-500 dark:text-surface-400">TRC20 (Tron) network only</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-white p-3 dark:border-brand-800 dark:bg-surface-900">
+              <p className="flex-1 break-all font-mono text-sm text-surface-900 dark:text-white">
+                {ADMIN_TRON_WALLET || "Wallet address not configured"}
+              </p>
+              <button
+                onClick={copyAddress}
+                className="shrink-0 rounded-md p-2 transition-colors hover:bg-brand-100 dark:hover:bg-brand-500/20"
+              >
+                {copied ? <Check className="h-4 w-4 text-success-600" /> : <Copy className="h-4 w-4 text-brand-600 dark:text-brand-400" />}
+              </button>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-500/10">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                <strong>Important:</strong> Only send <strong>USDT</strong> on the <strong>TRC20 (Tron)</strong> network.
+                Sending other tokens or using a different network will result in permanent loss.
+              </p>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="rounded-lg border border-surface-200 bg-surface-50 p-4 dark:border-surface-700 dark:bg-surface-800">
+            <p className="text-sm font-medium text-surface-900 dark:text-white mb-2">Instructions:</p>
+            <ol className="space-y-1.5 text-xs text-surface-600 dark:text-surface-400">
+              <li className="flex gap-2"><span className="font-bold text-brand-600">1.</span> Copy the wallet address above</li>
+              <li className="flex gap-2"><span className="font-bold text-brand-600">2.</span> Open your wallet or exchange (Binance, Trust Wallet, etc.)</li>
+              <li className="flex gap-2"><span className="font-bold text-brand-600">3.</span> Send the exact amount of USDT via <strong>TRC20</strong> network</li>
+              <li className="flex gap-2"><span className="font-bold text-brand-600">4.</span> After payment is complete, click "I've Made the Payment" below</li>
+              <li className="flex gap-2"><span className="font-bold text-brand-600">5.</span> Upload your proof of payment and transaction hash</li>
+            </ol>
+          </div>
+
+          {/* Your draft is saved automatically */}
+          {draft.amount && (
+            <p className="flex items-center gap-1.5 text-xs text-surface-400 dark:text-surface-500">
+              <Clock className="h-3 w-3" />
+              Your progress is saved automatically
+            </p>
+          )}
+
+          {/* Minimum deposit warning */}
+          {draft.amount && parseFloat(draft.amount) > 0 && parseFloat(draft.amount) < MIN_DEPOSIT && (
+            <div className="flex items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700 dark:border-warning-800 dark:bg-warning-500/10 dark:text-warning-400">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Minimum deposit amount is ${MIN_DEPOSIT}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button onClick={goToStep2} disabled={!draft.amount || parseFloat(draft.amount) <= 0}>
+              I've Made the Payment
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button variant="outline" onClick={() => { clearDraft(); onCancel(); }}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        /* ═══ STEP 2: Enter tx hash & upload proof ═══ */
+        <div className="space-y-4">
+          {/* Summary of payment */}
+          <div className="space-y-2 rounded-lg border border-success-200 bg-success-50 p-3 dark:border-success-800 dark:bg-success-500/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-success-600 dark:text-success-400">Payment Amount</p>
+                <p className="text-lg font-bold text-success-800 dark:text-success-300">{formatCurrency(parseFloat(draft.amount) || 0)} USDT</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-success-600 dark:text-success-400">Plan</p>
+                <p className="text-sm font-semibold text-success-800 dark:text-success-300">{INVESTMENT_PLANS[draft.plan].name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 border-t border-success-200 pt-2 dark:border-success-800">
+              <div className="flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-success-600 dark:text-success-400" />
+                <span className="text-xs text-success-700 dark:text-success-400">{INVESTMENT_PLANS[draft.plan].lockPeriodMonths}-month lock</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-success-600 dark:text-success-400" />
+                <span className="text-xs text-success-700 dark:text-success-400">{INVESTMENT_PLANS[draft.plan].roiPercent}% ROI</span>
+              </div>
+              <div className="ml-auto">
+                <span className="text-xs font-semibold text-success-800 dark:text-success-300">
+                  Return: {formatCurrency(parseFloat(draft.amount) * (INVESTMENT_PLANS[draft.plan].roiPercent / 100))}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction Hash */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Transaction Hash</label>
+            <Input
+              placeholder="Enter the transaction hash from your payment"
+              value={draft.txHash}
+              onChange={(e) => saveDraft({ ...draft, txHash: e.target.value })}
+            />
+            <p className="text-xs text-surface-500 dark:text-surface-400">
+              You can find the transaction hash in your wallet or exchange after sending the payment.
+            </p>
+          </div>
+
+          {/* Upload Proof of Payment */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Proof of Payment</label>
+            {!proofFile ? (
+              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-surface-300 p-6 transition-colors hover:border-brand-400 hover:bg-brand-50/50 dark:border-surface-600 dark:hover:border-brand-500 dark:hover:bg-brand-500/5">
+                <FileImage className="h-8 w-8 text-surface-400 dark:text-surface-500" />
+                <p className="text-sm font-medium text-surface-600 dark:text-surface-400">
+                  Click to upload payment receipt
+                </p>
+                <p className="text-xs text-surface-400 dark:text-surface-500">
+                  PNG, JPG, WEBP, or PDF (max 5MB)
+                </p>
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp,.pdf"
+                  className="hidden"
+                  onChange={handleProofSelect}
+                />
+              </label>
             ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-surface-200 dark:bg-surface-700">
-                <FileImage className="h-6 w-6 text-surface-500" />
+              <div className="flex items-start gap-3 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
+                {proofPreview ? (
+                  <img src={proofPreview} alt="Proof preview" className="h-16 w-16 rounded-md object-cover" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-md bg-surface-200 dark:bg-surface-700">
+                    <FileImage className="h-6 w-6 text-surface-500" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium text-surface-900 dark:text-white">{proofFile.name}</p>
+                  <p className="text-xs text-surface-500">{(proofFile.size / 1024).toFixed(1)} KB</p>
+                </div>
+                <button onClick={handleRemoveProof} className="shrink-0 rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-danger-600 dark:hover:bg-surface-700">
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium text-surface-900 dark:text-white">{proofFile.name}</p>
-              <p className="text-xs text-surface-500">{(proofFile.size / 1024).toFixed(1)} KB</p>
-            </div>
-            <button onClick={handleRemoveProof} className="shrink-0 rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-danger-600 dark:hover:bg-surface-700">
-              <Trash2 className="h-4 w-4" />
-            </button>
           </div>
-        )}
-      </div>
 
-      <div className="flex gap-3">
-        <Button onClick={handleSubmit} disabled={submitting || !amount || !txHash || !proofFile}>
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Deposit"}
-        </Button>
-        <Button variant="outline" onClick={onDone}>Cancel</Button>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Web3 Deposit Form
-// ═══════════════════════════════════════════════════════════════════════
-function Web3DepositForm({
-  supabase,
-  userId,
-  onDone,
-}: {
-  supabase: ReturnType<typeof createClient>;
-  userId: string;
-  onDone: () => void;
-}) {
-  const { isConnected, address } = useAccount();
-  const { sendTransactionAsync, isPending: isSending } = useSendTransaction();
-  const [amount, setAmount] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const adminAddress = process.env.NEXT_PUBLIC_ETHEREUM_WALLET || "0xe857421898d5b6d0c68ecb374349d18db9b59502";
-
-  const handleSend = async () => {
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || parsedAmount <= 0) { setError("Please enter a valid amount"); return; }
-
-    setError(null);
-    try {
-      const hash = await sendTransactionAsync({
-        to: adminAddress as `0x${string}`,
-        value: parseEther(amount),
-      });
-
-      // Record deposit in database
-      await supabase.from("mc_deposits").insert({
-        user_id: userId,
-        amount: parsedAmount,
-        currency: "ETH",
-        network: "Ethereum",
-        tx_hash: hash,
-        status: "confirming",
-      });
-
-      setSuccess(true);
-      setTimeout(onDone, 2000);
-    } catch (err: any) {
-      console.error("Web3 deposit failed:", err);
-      if (err?.code === 4001) {
-        setError("Transaction rejected. Please approve in your wallet.");
-      } else {
-        setError(err?.shortMessage || err?.message || "Transaction failed");
-      }
-    }
-  };
-
-  if (success) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-6">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success-50 dark:bg-success-500/10">
-          <Check className="h-6 w-6 text-success-600 dark:text-success-500" />
-        </div>
-        <p className="font-semibold text-surface-900 dark:text-white">Deposit Submitted!</p>
-        <p className="text-sm text-surface-500">Your transaction is being confirmed on-chain.</p>
-      </div>
-    );
-  }
-
-  if (!isConnected) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-6">
-        <p className="text-sm text-surface-500 dark:text-surface-400">Connect your wallet to make a Web3 deposit</p>
-        <WalletButton />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700 dark:border-danger-800 dark:bg-danger-500/10 dark:text-danger-400">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
+          <div className="flex gap-3">
+            <Button onClick={handleSubmit} disabled={submitting || !draft.txHash || !proofFile}>
+              {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Deposit"}
+            </Button>
+            <Button variant="outline" onClick={goToStep1}>
+              <ArrowLeft className="mr-2 h-4 w-4" />Back
+            </Button>
+          </div>
         </div>
       )}
-
-      {/* Connected wallet info */}
-      <div className="flex items-center gap-2 rounded-lg border border-success-200 bg-success-50 p-3 dark:border-success-800 dark:bg-success-500/10">
-        <div className="h-2 w-2 rounded-full bg-success-500" />
-        <span className="text-sm font-medium text-success-700 dark:text-success-400">
-          Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
-        </span>
-      </div>
-
-      {/* Recipient */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Sending to</label>
-        <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
-          <p className="font-mono text-sm text-surface-900 dark:text-white">{adminAddress}</p>
-          <p className="mt-1 text-xs text-surface-500">Platform deposit address (Ethereum)</p>
-        </div>
-      </div>
-
-      {/* Amount */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Amount (ETH)</label>
-        <Input
-          type="number"
-          placeholder="0.00"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          min="0"
-          step="0.0001"
-        />
-      </div>
-
-      <div className="flex gap-3">
-        <Button onClick={handleSend} disabled={isSending || !amount}>
-          {isSending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : (
-            <>
-              <ArrowRight className="mr-2 h-4 w-4" />
-              Send Deposit
-            </>
-          )}
-        </Button>
-        <Button variant="outline" onClick={onDone}>Cancel</Button>
-      </div>
     </div>
   );
 }
+
