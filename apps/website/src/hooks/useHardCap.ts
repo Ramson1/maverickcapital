@@ -22,34 +22,21 @@ export function useHardCap(): HardCapData {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch hard cap config
-      const { data: config } = await supabase
-        .from("mc_system_config")
-        .select("value")
-        .eq("key", "hard_cap")
-        .single();
+      // Fetch hard cap from mc_settings
+      const { data: settings } = await supabase
+        .from("mc_settings")
+        .select("key, value")
+        .in("key", ["platform_hard_cap"]);
 
-      const capAmount = config?.value?.amount ?? 500000;
-      const enabled = config?.value?.enabled ?? true;
+      const settingsMap: Record<string, string> = {};
+      settings?.forEach((s) => { settingsMap[s.key] = s.value; });
+      const capAmount = Number(settingsMap["platform_hard_cap"] || 500000);
       setHardCap(capAmount);
 
-      // Fetch total capital raised (approved deposits)
-      const { data: deposits } = await supabase
-        .from("mc_deposits")
-        .select("amount")
-        .eq("status", "approved");
-
-      const total = deposits?.reduce((sum, d) => sum + Number(d.amount), 0) || 0;
+      // Use RPC to get total raised (bypasses RLS)
+      const { data: totalRaisedData } = await supabase.rpc("get_total_capital_raised");
+      const total = Number(totalRaisedData || 0);
       setTotalRaised(total);
-
-      // If no deposits yet, also check total_investment from profiles as fallback
-      if (total === 0) {
-        const { data: profiles } = await supabase
-          .from("mc_profiles")
-          .select("total_investment");
-        const profileTotal = profiles?.reduce((sum, p) => sum + Number(p.total_investment || 0), 0) || 0;
-        setTotalRaised(profileTotal);
-      }
     } catch (err) {
       console.error("Failed to fetch hard cap data:", err);
     } finally {

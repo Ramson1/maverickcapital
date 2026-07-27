@@ -27,6 +27,8 @@ create table if not exists mc_profiles (
 
 -- Ensure columns exist on previously-created tables
 alter table mc_profiles add column if not exists email text;
+alter table mc_profiles add column if not exists avatar_url text;
+alter table mc_profiles add column if not exists phone text;
 
 -- Populate email for existing profiles from auth.users (requires SECURITY DEFINER to bypass auth.users RLS)
 create or replace function _sync_profile_emails()
@@ -262,6 +264,15 @@ create table if not exists mc_kyc_submissions (
 alter table mc_kyc_submissions add column if not exists reviewed_by uuid references auth.users(id);
 alter table mc_kyc_submissions add column if not exists reviewed_at timestamptz;
 alter table mc_kyc_submissions add column if not exists rejection_reason text;
+alter table mc_kyc_submissions add column if not exists id_document_data text;
+alter table mc_kyc_submissions add column if not exists address_document_data text;
+alter table mc_kyc_submissions add column if not exists selfie_document_data text;
+alter table mc_kyc_submissions add column if not exists id_document_name text;
+alter table mc_kyc_submissions add column if not exists address_document_name text;
+alter table mc_kyc_submissions add column if not exists selfie_document_name text;
+alter table mc_kyc_submissions add column if not exists status text not null default 'pending';
+alter table mc_kyc_submissions add column if not exists created_at timestamptz default now();
+alter table mc_kyc_submissions add column if not exists updated_at timestamptz default now();
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. SIGNAL CATEGORIES
@@ -497,6 +508,12 @@ returns boolean as $$
     join mc_roles r on r.id = ur.role_id
     where ur.user_id = uid and r.name in ('admin', 'super_admin', 'moderator')
   );
+$$ language sql security definer stable;
+
+-- Get total capital raised (sum of approved deposits) — bypasses RLS
+create or replace function get_total_capital_raised()
+returns numeric as $$
+  select coalesce(sum(amount), 0) from mc_deposits where status = 'approved';
 $$ language sql security definer stable;
 
 -- ═════════════════════════════════════════════════════════════════════════════
