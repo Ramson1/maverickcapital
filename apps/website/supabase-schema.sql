@@ -26,6 +26,22 @@ create table if not exists mc_profiles (
 );
 
 -- Ensure columns exist on previously-created tables
+alter table mc_profiles add column if not exists email text;
+
+-- Populate email for existing profiles from auth.users (requires SECURITY DEFINER to bypass auth.users RLS)
+create or replace function _sync_profile_emails()
+returns void as $$
+begin
+  update mc_profiles p
+  set email = u.email
+  from auth.users u
+  where p.id = u.id and (p.email is null or p.email = '');
+end;
+$$ language plpgsql security definer;
+
+select _sync_profile_emails();
+drop function if exists _sync_profile_emails();
+
 alter table mc_profiles add column if not exists phone text;
 alter table mc_profiles add column if not exists withdrawal_address text;
 alter table mc_profiles add column if not exists wallet_balance numeric(18,2) default 0;
@@ -88,6 +104,14 @@ create table if not exists mc_roles (
   description text,
   created_at  timestamptz default now()
 );
+
+-- Seed default roles
+insert into mc_roles (name, description) values
+  ('user', 'Default user role'),
+  ('admin', 'Administrator with full access'),
+  ('super_admin', 'Super administrator with elevated privileges'),
+  ('moderator', 'Moderator with limited admin access')
+on conflict (name) do nothing;
 
 create table if not exists mc_user_roles (
   id         uuid primary key default gen_random_uuid(),
@@ -214,6 +238,30 @@ alter table mc_investments add column if not exists deposit_id uuid references m
 alter table mc_investments add column if not exists current_value numeric(18,2) default 0;
 alter table mc_investments add column if not exists roi_percent numeric(8,2) default 0;
 alter table mc_investments add column if not exists end_date timestamptz;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 7b. KYC SUBMISSIONS — user identity verification documents
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists mc_kyc_submissions (
+  id                    uuid primary key default gen_random_uuid(),
+  user_id               uuid not null references auth.users(id) on delete cascade,
+  id_document_data      text,
+  address_document_data text,
+  selfie_document_data  text,
+  id_document_name      text,
+  address_document_name text,
+  selfie_document_name  text,
+  status                text not null default 'pending',  -- pending | approved | rejected
+  reviewed_by           uuid references auth.users(id),
+  reviewed_at           timestamptz,
+  rejection_reason      text,
+  created_at            timestamptz default now(),
+  updated_at            timestamptz default now()
+);
+
+alter table mc_kyc_submissions add column if not exists reviewed_by uuid references auth.users(id);
+alter table mc_kyc_submissions add column if not exists reviewed_at timestamptz;
+alter table mc_kyc_submissions add column if not exists rejection_reason text;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. SIGNAL CATEGORIES
@@ -473,6 +521,7 @@ alter table mc_deposits enable row level security;
 alter table mc_withdrawals enable row level security;
 alter table mc_investment_plans enable row level security;
 alter table mc_investments enable row level security;
+alter table mc_kyc_submissions enable row level security;
 alter table mc_signal_categories enable row level security;
 alter table mc_signals enable row level security;
 alter table mc_subscription_plans enable row level security;
@@ -555,6 +604,23 @@ select _drop_policy('mc_investments', 'Admins can update investments');
 select _drop_policy('mc_investments', 'Admins can delete investments');
 create policy "Admins can manage investments"
   on mc_investments for all using (is_admin(auth.uid()));
+
+-- ── KYC Submissions: users read/insert own, admins manage all ──
+select _drop_policy('mc_kyc_submissions', 'Users can view own KYC submissions');
+create policy "Users can view own KYC submissions"
+  on mc_kyc_submissions for select using (auth.uid() = user_id or is_admin(auth.uid()));
+
+select _drop_policy('mc_kyc_submissions', 'Users can insert own KYC submissions');
+create policy "Users can insert own KYC submissions"
+  on mc_kyc_submissions for insert with check (auth.uid() = user_id);
+
+select _drop_policy('mc_kyc_submissions', 'Users can delete own pending KYC');
+create policy "Users can delete own pending KYC"
+  on mc_kyc_submissions for delete using (auth.uid() = user_id and status = 'pending');
+
+select _drop_policy('mc_kyc_submissions', 'Admins can manage KYC submissions');
+create policy "Admins can manage KYC submissions"
+  on mc_kyc_submissions for all using (is_admin(auth.uid()));
 
 -- ── Signals: everyone can read active, admins full access ──
 select _drop_policy('mc_signals', 'Anyone can read active signals');

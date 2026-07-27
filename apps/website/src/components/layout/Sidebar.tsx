@@ -23,6 +23,7 @@ import {
   X,
   Users,
   Bell,
+  FileCheck,
 } from "lucide-react";
 
 const navigation = [
@@ -40,6 +41,7 @@ const navigation = [
 const adminNavigation = [
   { name: "Admin Dashboard", href: "/admin", icon: Shield },
   { name: "Users", href: "/admin/users", icon: User },
+  { name: "KYC Verification", href: "/admin/kyc", icon: FileCheck },
   { name: "User Profits", href: "/admin/investments", icon: TrendingUp },
   { name: "Deposits", href: "/admin/deposits", icon: Wallet },
   { name: "Withdrawals", href: "/admin/withdrawals", icon: ArrowLeftRight },

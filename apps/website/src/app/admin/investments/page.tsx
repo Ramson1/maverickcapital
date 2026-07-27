@@ -36,7 +36,12 @@ export default function AdminUserProfitsPage() {
         .select("id, full_name, email, wallet_balance, total_profit, total_investment, kyc_status, account_status, created_at")
         .order("created_at", { ascending: false });
 
-      if (error || !profiles) {
+      if (error) {
+        console.error("Admin user profits fetch error:", error.message || error);
+        setLoading(false);
+        return;
+      }
+      if (!profiles) {
         setLoading(false);
         return;
       }
@@ -57,13 +62,15 @@ export default function AdminUserProfitsPage() {
       const rows: UserProfit[] = profiles.map((p) => {
         const profileDeposited = Number(p.total_investment || 0);
         const directDeposited = depositTotals[p.id] || 0;
+        const totalDeposited = Math.max(profileDeposited, directDeposited);
+        const totalProfit = Number(p.total_profit || 0);
         return {
           user_id: p.id,
           full_name: p.full_name || "Unnamed",
           email: p.email || "",
-          total_deposited: Math.max(profileDeposited, directDeposited),
-          total_profit: Number(p.total_profit || 0),
-          wallet_balance: Number(p.wallet_balance || 0),
+          total_deposited: totalDeposited,
+          total_profit: totalProfit,
+          wallet_balance: totalDeposited + totalProfit, // Wallet Balance = Total Deposit + Total Profit
           total_investment: Number(p.total_investment || 0),
           kyc_status: p.kyc_status || "not_submitted",
           account_status: p.account_status || "active",

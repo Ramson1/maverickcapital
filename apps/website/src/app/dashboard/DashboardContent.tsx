@@ -22,6 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useHardCap } from "@/hooks/useHardCap";
 import { DashboardSkeleton } from "@/components/ui/PageSkeletons";
+import { SuspendedScreen } from "@/components/ui/SuspendedScreen";
 
 interface StatItem {
   name: string;
@@ -54,18 +55,26 @@ export function DashboardContent() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSuspended, setIsSuspended] = useState(false);
 
   useEffect(() => {
     if (!user) return;
 
     const fetchData = async () => {
       try {
-        // Fetch profile for balances
+        // Fetch profile for balances and check suspension status
         const { data: profile } = await supabase
           .from("mc_profiles")
-          .select("wallet_balance, total_investment, total_profit")
+          .select("wallet_balance, total_investment, total_profit, account_status")
           .eq("id", user.id)
           .single();
+
+        // Check if user is suspended or blocked
+        if (profile?.account_status === "suspended" || profile?.account_status === "blocked") {
+          setIsSuspended(true);
+          setLoading(false);
+          return;
+        }
 
         // Fetch approved deposits directly to compute totals (fallback if profile is out of sync)
         const { data: approvedDeposits } = await supabase
@@ -228,6 +237,10 @@ export function DashboardContent() {
 
     setChartData(data);
   };
+
+  if (isSuspended) {
+    return <SuspendedScreen />;
+  }
 
   if (loading) {
     return <DashboardSkeleton />;

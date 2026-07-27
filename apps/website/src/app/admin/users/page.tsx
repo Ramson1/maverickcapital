@@ -67,7 +67,12 @@ export default function AdminUsersPage() {
       .select("id, full_name, email, kyc_status, account_status, created_at")
       .order("created_at", { ascending: false });
 
-    if (error || !profiles) {
+    if (error) {
+      console.error("Admin users fetch error:", error.message || error);
+      setLoading(false);
+      return;
+    }
+    if (!profiles) {
       setLoading(false);
       return;
     }
