@@ -1,6 +1,5 @@
 {
   "buildCommand": "next build",
   "outputDirectory": ".next",
-  "installCommand": "npm install",
-  "rootDirectory": "apps/website"
+  "installCommand": "npm install"
 }
