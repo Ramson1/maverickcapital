@@ -90,9 +90,9 @@ export function DashboardContent() {
           supabase.from("mc_investments").select("id, amount, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
         ]);
 
-        if (depositsRes.error) console.error("Dashboard deposits fetch error:", depositsRes.error);
-        if (withdrawalsRes.error) console.error("Dashboard withdrawals fetch error:", withdrawalsRes.error);
-        if (investmentsRes.error) console.error("Dashboard investments fetch error:", investmentsRes.error);
+        if (depositsRes.error) console.error("Dashboard deposits fetch error:", depositsRes.error.message || depositsRes.error);
+        if (withdrawalsRes.error) console.error("Dashboard withdrawals fetch error:", withdrawalsRes.error.message || withdrawalsRes.error);
+        if (investmentsRes.error) console.error("Dashboard investments fetch error:", investmentsRes.error.message || investmentsRes.error);
 
         // Merge all transactions into a unified list
         const allTx: Transaction[] = [

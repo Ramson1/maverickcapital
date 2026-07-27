@@ -23,23 +23,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     const checkAdmin = async () => {
       const supabase = createClient();
-      const { data: roleData } = await supabase
-        .from("mc_user_roles")
-        .select("mc_roles(name)")
-        .eq("user_id", user.id);
+      const { data: isAdminUser } = await supabase
+        .rpc("is_admin", { uid: user.id });
 
-      const roles = (roleData || []).flatMap((r: any) =>
-        Array.isArray(r.mc_roles) ? r.mc_roles : [r.mc_roles]
-      ).filter(Boolean);
-
-      const hasAdmin = roles.some((r: { name: string }) =>
-        ["super_admin", "admin", "moderator"].includes(r.name)
-      );
-
-      setIsAdmin(hasAdmin);
+      setIsAdmin(!!isAdminUser);
       setChecking(false);
 
-      if (!hasAdmin) {
+      if (!isAdminUser) {
         router.replace("/dashboard");
       }
     };

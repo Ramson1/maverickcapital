@@ -110,20 +110,10 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       }
 
       // Check admin role
-      const { data: roleData } = await supabase
-        .from("mc_user_roles")
-        .select("mc_roles(name)")
-        .eq("user_id", user.id);
+      const { data: isAdminUser } = await supabase
+        .rpc("is_admin", { uid: user.id });
 
-      const roles = (roleData || []).flatMap((r: any) =>
-        Array.isArray(r.mc_roles) ? r.mc_roles : [r.mc_roles]
-      ).filter(Boolean);
-
-      setIsAdmin(
-        roles.some((r: { name: string }) =>
-          ["super_admin", "admin", "moderator"].includes(r.name)
-        )
-      );
+      setIsAdmin(!!isAdminUser);
     };
 
     fetchProfile();
@@ -207,21 +197,23 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Admin toggle */}
-        <button
-          onClick={handleSwitchView}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm",
-            isOnAdmin
-              ? "bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
-              : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
-          )}
-        >
-          <Shield className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">
-            {isOnAdmin ? "User View" : "Admin View"}
-          </span>
-        </button>
+        {/* Admin toggle - only for admins */}
+        {isAdmin && (
+          <button
+            onClick={handleSwitchView}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm",
+              isOnAdmin
+                ? "bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
+                : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20"
+            )}
+          >
+            <Shield className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">
+              {isOnAdmin ? "User View" : "Admin View"}
+            </span>
+          </button>
+        )}
 
         {/* Theme toggle */}
         <button
