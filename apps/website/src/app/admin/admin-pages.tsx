@@ -1705,13 +1705,12 @@ export function AdminAuditLogsPage() {
 interface Notification {
   id: string;
   title: string;
-  message: string;
+  body: string;
   type: string;
-  target: string; // "all", "specific_user"
-  target_user_id: string | null;
-  target_user_name?: string;
+  user_id: string | null;
+  is_read: boolean;
   created_at: string;
-  read: boolean;
+  target_user_name?: string;
 }
 
 export function AdminNotificationsPage() {
@@ -1736,14 +1735,14 @@ export function AdminNotificationsPage() {
       .order("created_at", { ascending: false });
     if (error || !data) { setLoading(false); return; }
 
-    const userIds = [...new Set(data.map((n) => n.target_user_id).filter(Boolean))];
+    const userIds = [...new Set(data.map((n) => n.user_id).filter(Boolean))];
     let nameMap: Record<string, string> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase.from("mc_profiles").select("id, full_name").in("id", userIds);
       if (profiles) profiles.forEach((p) => { nameMap[p.id] = p.full_name || p.id.slice(0, 8); });
     }
 
-    setNotifications(data.map((n) => ({ ...n, target_user_name: nameMap[n.target_user_id] || "" })));
+    setNotifications(data.map((n) => ({ ...n, target_user_name: nameMap[n.user_id] || "" })));
     setLoading(false);
   }, [supabase]);
 
@@ -1757,7 +1756,7 @@ export function AdminNotificationsPage() {
 
   const openEdit = (n: Notification) => {
     setEditing(n);
-    setFormTitle(n.title); setFormMessage(n.message); setFormType(n.type); setFormTarget(n.target);
+    setFormTitle(n.title); setFormMessage(n.body); setFormType(n.type); setFormTarget(n.user_id ? "specific" : "all");
     setShowForm(true);
   };
 
@@ -1766,12 +1765,12 @@ export function AdminNotificationsPage() {
     setSaving(true);
     if (editing) {
       const { error } = await supabase.from("mc_notifications")
-        .update({ title: formTitle.trim(), message: formMessage.trim(), type: formType, target: formTarget })
+        .update({ title: formTitle.trim(), body: formMessage.trim(), type: formType, user_id: formTarget === "all" ? null : null })
         .eq("id", editing.id);
-      if (!error) { setNotifications((prev) => prev.map((n) => n.id === editing.id ? { ...n, title: formTitle.trim(), message: formMessage.trim(), type: formType, target: formTarget } : n)); logAudit(supabase, `Updated notification "${formTitle.trim()}"`, "mc_notifications", editing.id); }
+      if (!error) { setNotifications((prev) => prev.map((n) => n.id === editing.id ? { ...n, title: formTitle.trim(), body: formMessage.trim(), type: formType } : n)); logAudit(supabase, `Updated notification "${formTitle.trim()}"`, "mc_notifications", editing.id); }
     } else {
       const { data, error } = await supabase.from("mc_notifications")
-        .insert({ title: formTitle.trim(), message: formMessage.trim(), type: formType, target: formTarget })
+        .insert({ title: formTitle.trim(), body: formMessage.trim(), type: formType })
         .select().single();
       if (!error && data) { setNotifications((prev) => [data, ...prev]); logAudit(supabase, `Sent notification "${formTitle.trim()}"`, "mc_notifications", data.id); }
     }
@@ -1787,7 +1786,7 @@ export function AdminNotificationsPage() {
     setProcessing(null);
   };
 
-  const filtered = notifications.filter((n) => !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.message.toLowerCase().includes(search.toLowerCase()));
+  const filtered = notifications.filter((n) => !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.body.toLowerCase().includes(search.toLowerCase()));
 
   const typeColors: Record<string, string> = { info: "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400", warning: "bg-warning-50 text-warning-700 dark:bg-warning-500/10 dark:text-warning-400", success: "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400", alert: "bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-400" };
 
@@ -1866,9 +1865,9 @@ export function AdminNotificationsPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold text-surface-900 dark:text-white truncate">{n.title}</h3>
                     <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", typeColors[n.type] || typeColors.info)}>{n.type}</span>
-                    <Badge variant="default">{n.target}</Badge>
+                    <Badge variant="default">{n.user_id ? "specific" : "all"}</Badge>
                   </div>
-                  <p className="text-sm text-surface-500">{n.message}</p>
+                  <p className="text-sm text-surface-500">{n.body}</p>
                   <p className="mt-1 text-xs text-surface-400">{new Date(n.created_at).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-1 ml-4">
