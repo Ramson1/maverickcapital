@@ -2,76 +2,109 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Search, TrendingUp, DollarSign, Loader2 } from "lucide-react";
+import { Search, TrendingUp, DollarSign, Users, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
-interface Investment {
-  id: string;
-  user_name: string;
+interface UserProfit {
   user_id: string;
-  plan_name: string;
-  amount: number;
-  current_value: number;
-  status: string;
-  start_date: string;
+  full_name: string;
+  email: string;
+  total_deposited: number;
+  total_profit: number;
+  wallet_balance: number;
+  total_investment: number;
+  kyc_status: string;
+  account_status: string;
+  joined_at: string;
 }
 
-const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = { active: "default", completed: "success", pending: "warning", cancelled: "destructive", paused: "warning" };
-
-export default function AdminInvestmentsPage() {
+export default function AdminUserProfitsPage() {
   const supabase = createClient();
-  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [users, setUsers] = useState<UserProfit[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchInvestments = async () => {
-      const { data, error } = await supabase
-        .from("mc_investments")
-        .select("*, mc_investment_plans(name)")
+    const fetchData = async () => {
+      // Fetch all profiles with financial data
+      const { data: profiles, error } = await supabase
+        .from("mc_profiles")
+        .select("id, full_name, email, wallet_balance, total_profit, total_investment, kyc_status, account_status, created_at")
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
+      if (error || !profiles) {
         setLoading(false);
         return;
       }
 
-      // Fetch user profiles for all unique user_ids
-      const userIds = [...new Set(data.map((inv) => inv.user_id))];
-      const { data: profiles } = await supabase
-        .from("mc_profiles")
-        .select("id, full_name")
-        .in("id", userIds);
+      // Fetch approved deposits per user to compute total deposited
+      const { data: deposits } = await supabase
+        .from("mc_deposits")
+        .select("user_id, amount")
+        .eq("status", "approved");
 
-      const nameMap: Record<string, string> = {};
-      if (profiles) {
-        profiles.forEach((p) => { nameMap[p.id] = p.full_name || p.id.slice(0, 8); });
+      const depositTotals: Record<string, number> = {};
+      if (deposits) {
+        deposits.forEach((d) => {
+          depositTotals[d.user_id] = (depositTotals[d.user_id] || 0) + Number(d.amount);
+        });
       }
 
-      const rows: Investment[] = data.map((inv) => ({
-        id: inv.id,
-        user_name: nameMap[inv.user_id] || inv.user_id.slice(0, 8),
-        user_id: inv.user_id,
-        plan_name: inv.mc_investment_plans?.name || "Unknown Plan",
-        amount: Number(inv.amount),
-        current_value: Number(inv.current_value),
-        status: inv.status,
-        start_date: inv.start_date,
-      }));
+      const rows: UserProfit[] = profiles.map((p) => {
+        const profileDeposited = Number(p.total_investment || 0);
+        const directDeposited = depositTotals[p.id] || 0;
+        return {
+          user_id: p.id,
+          full_name: p.full_name || "Unnamed",
+          email: p.email || "",
+          total_deposited: Math.max(profileDeposited, directDeposited),
+          total_profit: Number(p.total_profit || 0),
+          wallet_balance: Number(p.wallet_balance || 0),
+          total_investment: Number(p.total_investment || 0),
+          kyc_status: p.kyc_status || "not_submitted",
+          account_status: p.account_status || "active",
+          joined_at: p.created_at,
+        };
+      });
 
-      setInvestments(rows);
+      setUsers(rows);
       setLoading(false);
     };
 
-    fetchInvestments();
+    fetchData();
   }, []);
 
-  const filtered = investments.filter((i) => !search || i.user_name.toLowerCase().includes(search.toLowerCase()) || i.plan_name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = users.filter((u) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      u.full_name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.user_id.toLowerCase().includes(q)
+    );
+  });
+
+  // Summary stats
+  const totalDeposited = users.reduce((sum, u) => sum + u.total_deposited, 0);
+  const totalProfit = users.reduce((sum, u) => sum + u.total_profit, 0);
+  const totalWallet = users.reduce((sum, u) => sum + u.wallet_balance, 0);
+
+  const kycVariant: Record<string, "success" | "warning" | "secondary" | "destructive"> = {
+    verified: "success",
+    pending: "warning",
+    not_submitted: "secondary",
+    rejected: "destructive",
+  };
+  const statusVariant: Record<string, "success" | "warning" | "destructive" | "default"> = {
+    active: "success",
+    suspended: "destructive",
+    blocked: "destructive",
+    pending_verification: "warning",
+  };
 
   if (loading) {
     return <TablePageSkeleton />;
@@ -79,25 +112,69 @@ export default function AdminInvestmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Investment Management</h1>
-          <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">Manage all user investments and apply profits</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline"><DollarSign className="mr-2 h-4 w-4" />Apply Profit</Button>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-surface-900 dark:text-white">User Profits</h1>
+        <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
+          Overview of all user deposits, profits, and wallet balances
+        </p>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+              <DollarSign className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+            </div>
+            <div>
+              <p className="text-xs text-surface-500 dark:text-surface-400">Total Deposited</p>
+              <p className="text-xl font-bold text-surface-900 dark:text-white">{formatCurrency(totalDeposited)}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-50 dark:bg-success-500/10">
+              <TrendingUp className="h-5 w-5 text-success-600 dark:text-success-500" />
+            </div>
+            <div>
+              <p className="text-xs text-surface-500 dark:text-surface-400">Total Profits Credited</p>
+              <p className="text-xl font-bold text-success-600 dark:text-success-400">{formatCurrency(totalProfit)}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning-50 dark:bg-warning-500/10">
+              <Users className="h-5 w-5 text-warning-600 dark:text-warning-500" />
+            </div>
+            <div>
+              <p className="text-xs text-surface-500 dark:text-surface-400">Total Wallet Balance</p>
+              <p className="text-xl font-bold text-surface-900 dark:text-white">{formatCurrency(totalWallet)}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search */}
       <Card>
         <CardContent className="p-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
-            <Input placeholder="Search by user or plan..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input
+              placeholder="Search by name, email, or user ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
           </div>
         </CardContent>
       </Card>
 
+      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -105,31 +182,59 @@ export default function AdminInvestmentsPage() {
               <thead>
                 <tr className="border-b border-surface-200 dark:border-surface-700">
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Plan</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Current Value</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Profit</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">KYC</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase text-surface-500">Deposited</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase text-surface-500">Profit</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase text-surface-500">Wallet Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500">Joined</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-surface-500">No investments found</td></tr>
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-sm text-surface-500">
+                      No users found
+                    </td>
+                  </tr>
                 ) : (
-                  filtered.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
-                      <td className="px-6 py-4"><p className="font-medium text-surface-900 dark:text-white">{inv.user_name}</p></td>
-                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">{inv.plan_name}</td>
-                      <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">{formatCurrency(inv.amount)}</td>
-                      <td className="px-6 py-4 font-medium text-success-600">{formatCurrency(inv.current_value)}</td>
-                      <td className="px-6 py-4 text-sm text-success-600">+{formatCurrency(inv.current_value - inv.amount)}</td>
-                      <td className="px-6 py-4"><Badge variant={statusVariant[inv.status] || "default"}>{inv.status}</Badge></td>
+                  filtered.map((u) => (
+                    <tr key={u.user_id} className="hover:bg-surface-50 dark:hover:bg-surface-800/50">
                       <td className="px-6 py-4">
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="sm"><DollarSign className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm"><TrendingUp className="h-4 w-4" /></Button>
+                        <div>
+                          <p className="font-medium text-surface-900 dark:text-white">{u.full_name}</p>
+                          <p className="text-xs text-surface-500">{u.email}</p>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant={statusVariant[u.account_status] || "default"}>
+                          {u.account_status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant={kycVariant[u.kyc_status] || "secondary"}>
+                          {u.kyc_status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-surface-900 dark:text-white">
+                        {formatCurrency(u.total_deposited)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className={cn(
+                          "inline-flex items-center gap-0.5 font-medium",
+                          u.total_profit > 0
+                            ? "text-success-600 dark:text-success-400"
+                            : "text-surface-400"
+                        )}>
+                          {u.total_profit > 0 && <ArrowUpRight className="h-3.5 w-3.5" />}
+                          {formatCurrency(u.total_profit)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-surface-900 dark:text-white">
+                        {formatCurrency(u.wallet_balance)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">
+                        {new Date(u.joined_at).toLocaleDateString()}
                       </td>
                     </tr>
                   ))

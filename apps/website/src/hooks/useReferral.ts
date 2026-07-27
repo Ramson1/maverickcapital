@@ -4,6 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 
+// Generate a unique 8-char alphanumeric referral code
+function generateReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Exclude ambiguous chars (0/O, 1/I)
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 interface ReferralData {
   referralCode: string | null;
   totalReferrals: number;
@@ -50,7 +60,21 @@ export function useReferral(): ReferralData {
         .eq("id", user.id)
         .single();
 
-      setReferralCode(profile?.referral_code || null);
+      let code = profile?.referral_code || null;
+
+      // If no referral code exists, generate one and save it
+      if (!code) {
+        const generated = generateReferralCode();
+        const { data: updated } = await supabase
+          .from("mc_profiles")
+          .update({ referral_code: generated })
+          .eq("id", user.id)
+          .select("referral_code")
+          .single();
+        code = updated?.referral_code || generated;
+      }
+
+      setReferralCode(code);
 
       // Get referrals made by this user
       const { data: referralList } = await supabase

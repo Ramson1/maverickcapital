@@ -23,6 +23,7 @@ const DEPOSIT_NETWORK = "TRC20 (Tron)";
 const ADMIN_TRON_WALLET = process.env.NEXT_PUBLIC_TRON_WALLET || "";
 const LS_KEY = (userId: string) => `mc_deposit_draft_${userId}`;
 const MIN_DEPOSIT = 50; // Minimum deposit amount in USDT
+const MIN_WITHDRAWAL = 10; // Minimum withdrawal amount in USDT
 
 // ─── Investment Plans ─────────────────────────────────────────────────
 const INVESTMENT_PLANS = {
@@ -184,6 +185,7 @@ export default function DepositsPage() {
     if (!user) return;
     const amount = parseFloat(withdrawalAmount);
     if (!amount || amount <= 0) { setWithdrawalError("Please enter a valid amount"); return; }
+    if (amount < MIN_WITHDRAWAL) { setWithdrawalError(`Minimum withdrawal amount is $${MIN_WITHDRAWAL}`); return; }
     if (!withdrawalAddress) { setWithdrawalError("Please set your withdrawal address in your Profile first"); return; }
     if (amount > availableBalance) { setWithdrawalError(`Insufficient balance. Available: ${formatCurrency(availableBalance)}`); return; }
 
@@ -490,6 +492,9 @@ export default function DepositsPage() {
                       {withdrawalAmount && parseFloat(withdrawalAmount) > availableBalance && (
                         <p className="text-xs text-danger-600 dark:text-danger-400">Amount exceeds available balance</p>
                       )}
+                      {withdrawalAmount && parseFloat(withdrawalAmount) > 0 && parseFloat(withdrawalAmount) < MIN_WITHDRAWAL && (
+                        <p className="text-xs text-warning-600 dark:text-warning-400">Minimum withdrawal amount is ${MIN_WITHDRAWAL}</p>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
@@ -505,7 +510,7 @@ export default function DepositsPage() {
                     </p>
 
                     <div className="flex gap-3">
-                      <Button onClick={handleSubmitWithdrawal} disabled={submitting || !withdrawalAmount || parseFloat(withdrawalAmount) <= 0 || parseFloat(withdrawalAmount) > availableBalance}>
+                      <Button onClick={handleSubmitWithdrawal} disabled={submitting || !withdrawalAmount || parseFloat(withdrawalAmount) < MIN_WITHDRAWAL || parseFloat(withdrawalAmount) > availableBalance}>
                         {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Request"}
                       </Button>
                       <Button variant="outline" onClick={() => { setShowWithdrawalForm(false); setWithdrawalError(null); }}>Cancel</Button>

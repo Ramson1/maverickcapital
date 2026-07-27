@@ -447,43 +447,82 @@ function ChatView({
     }
   };
 
-  // Upload media
+  // Upload media - stores as base64 in database
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const isImage = file.type.startsWith("image/");
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "application/pdf"];
     if (!allowed.includes(file.type)) { showError("Unsupported File", "Please upload a PNG, JPG, WEBP, GIF, or PDF file."); return; }
-    if (file.size > 10 * 1024 * 1024) { showError("File Too Large", "File must be under 10MB."); return; }
+    if (file.size > 5 * 1024 * 1024) { showError("File Too Large", "File must be under 5MB."); return; }
 
     setSending(true);
-    const ext = file.name.split(".").pop();
-    const fileName = `${userId}/${ticket.id}/${Date.now()}.${ext}`;
 
-    const { error: uploadError } = await supabase.storage.from("support-media").upload(fileName, file);
-    if (uploadError) { showError("Upload Failed", "Failed to upload file. Please try again."); setSending(false); return; }
+    try {
+      // Convert file to base64 (compress if image)
+      let fileData: string;
+      if (isImage) {
+        fileData = await compressImage(file);
+      } else {
+        fileData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
+      }
 
-    const { data: urlData } = supabase.storage.from("support-media").getPublicUrl(fileName);
+      const { data: msgData, error } = await supabase
+        .from("mc_support_messages")
+        .insert({
+          ticket_id: ticket.id,
+          sender_id: userId,
+          body: isImage ? "" : file.name,
+          type: isImage ? "image" : "file",
+          file_url: fileData,
+          file_name: file.name,
+          reply_to_id: replyTo?.id || null,
+        })
+        .select()
+        .single();
 
-    const { data: msgData } = await supabase
-      .from("mc_support_messages")
-      .insert({
-        ticket_id: ticket.id,
-        sender_id: userId,
-        body: isImage ? "" : file.name,
-        type: isImage ? "image" : "file",
-        file_url: urlData?.publicUrl || "",
-        file_name: file.name,
-        reply_to_id: replyTo?.id || null,
-      })
-      .select()
-      .single();
-
-    if (msgData) onNewMessage(msgData);
-    setSending(false);
-    setReplyTo(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+      if (error) {
+        console.error("File upload error:", error);
+        showError("Upload Failed", error.message || "Failed to upload file. Please try again.");
+      } else if (msgData) {
+        onNewMessage(msgData);
+        setReplyTo(null);
+      }
+    } catch (err) {
+      console.error("File upload error:", err);
+      showError("Upload Failed", "Failed to process file. Please try a smaller file.");
+    } finally {
+      setSending(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
+
+  // Compress image for base64 storage
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.7): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = URL.createObjectURL(file);
+    });
 
   // Delete message
   const handleDelete = async (msgId: string) => {
@@ -706,7 +745,7 @@ function ChatView({
 
         {/* Emoji toggle */}
         <button
-          onClick={() => setShowEmoji(!showEmoji)}
+          onClick={(e) => { e.stopPropagation(); setShowEmoji(!showEmoji); }}
           className={cn("shrink-0 rounded-lg p-2 transition-colors hover:bg-surface-100 dark:hover:bg-surface-800", showEmoji ? "text-brand-500" : "text-surface-400 hover:text-surface-600 dark:hover:text-surface-300")}
         >
           <Smile className="h-5 w-5" />

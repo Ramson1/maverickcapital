@@ -38,7 +38,7 @@ const navigation = [
 const adminNavigation = [
   { name: "Admin Dashboard", href: "/admin", icon: Shield },
   { name: "Users", href: "/admin/users", icon: User },
-  { name: "Investments", href: "/admin/investments", icon: TrendingUp },
+  { name: "User Profits", href: "/admin/investments", icon: TrendingUp },
   { name: "Deposits", href: "/admin/deposits", icon: Wallet },
   { name: "Withdrawals", href: "/admin/withdrawals", icon: ArrowLeftRight },
   { name: "Referrals", href: "/admin/referrals", icon: Users },

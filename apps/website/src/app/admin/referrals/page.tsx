@@ -16,6 +16,8 @@ import {
   Loader2,
   Eye,
   Search,
+  Trash2,
+  XCircle,
 } from "lucide-react";
 
 interface ReferralStats {

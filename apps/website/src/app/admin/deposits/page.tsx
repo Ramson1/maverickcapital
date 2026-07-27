@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, cn } from "@/lib/utils";
-import { CheckCircle, XCircle, Eye, Loader2, Copy, Check, X, FileImage, Search } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Loader2, Copy, Check, X, FileImage, Search, DollarSign, TrendingUp, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 
@@ -143,6 +143,19 @@ export default function AdminDepositsPage() {
     setProcessing(null);
   };
 
+  const handleDelete = async (deposit: Deposit) => {
+    if (!confirm(`Delete deposit of ${formatCurrency(deposit.amount)} from ${deposit.user_name}?`)) return;
+    setProcessing(deposit.id);
+    const { error } = await supabase.from("mc_deposits").delete().eq("id", deposit.id);
+    if (error) {
+      console.error("Delete error:", error);
+      alert("Failed to delete deposit: " + error.message);
+    } else {
+      setDeposits((prev) => prev.filter((d) => d.id !== deposit.id));
+    }
+    setProcessing(null);
+  };
+
   const filtered = deposits.filter((d) => {
     const matchesStatus = statusFilter === "all" || d.status === statusFilter;
     const matchesSearch =
@@ -159,6 +172,11 @@ export default function AdminDepositsPage() {
     rejected: deposits.filter((d) => d.status === "rejected").length,
   };
 
+  // Calculate totals
+  const totalAll = deposits.reduce((sum, d) => sum + d.amount, 0);
+  const totalApproved = deposits.filter((d) => d.status === "approved").reduce((sum, d) => sum + d.amount, 0);
+  const totalPending = deposits.filter((d) => d.status === "pending").reduce((sum, d) => sum + d.amount, 0);
+
   if (loading) {
     return <TablePageSkeleton />;
   }
@@ -168,6 +186,48 @@ export default function AdminDepositsPage() {
       <div>
         <h1 className="text-2xl font-bold text-surface-900 dark:text-white">Deposit Management</h1>
         <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">Review and approve user deposits</p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-500/10">
+              <DollarSign className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+            </div>
+            <div>
+              <p className="text-xs text-surface-500 dark:text-surface-400">Total Deposits</p>
+              <p className="text-xl font-bold text-surface-900 dark:text-white">{formatCurrency(totalAll)}</p>
+              <p className="text-xs text-surface-400">{deposits.length} deposits</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-50 dark:bg-success-500/10">
+              <CheckCircle className="h-5 w-5 text-success-600 dark:text-success-500" />
+            </div>
+            <div>
+              <p className="text-xs text-surface-500 dark:text-surface-400">Approved</p>
+              <p className="text-xl font-bold text-success-600 dark:text-success-400">{formatCurrency(totalApproved)}</p>
+              <p className="text-xs text-surface-400">{counts.approved} deposits</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning-50 dark:bg-warning-500/10">
+              <TrendingUp className="h-5 w-5 text-warning-600 dark:text-warning-500" />
+            </div>
+            <div>
+              <p className="text-xs text-surface-500 dark:text-surface-400">Pending</p>
+              <p className="text-xl font-bold text-warning-600 dark:text-warning-400">{formatCurrency(totalPending)}</p>
+              <p className="text-xs text-surface-400">{counts.pending} deposits</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -233,6 +293,7 @@ export default function AdminDepositsPage() {
                         <div>
                           <p className="font-medium text-surface-900 dark:text-white">{dep.user_name}</p>
                           <p className="text-xs text-surface-500">{dep.user_email}</p>
+                          <p className="mt-0.5 font-mono text-[10px] text-surface-400" title={dep.user_id}>{dep.user_id.slice(0, 12)}...</p>
                         </div>
                       </td>
                       <td className="px-6 py-4 font-medium text-surface-900 dark:text-white">
@@ -323,6 +384,16 @@ export default function AdminDepositsPage() {
                               </Button>
                             </>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-danger-600 hover:bg-danger-50"
+                            disabled={processing === dep.id}
+                            onClick={() => handleDelete(dep)}
+                            title="Delete deposit"
+                          >
+                            {processing === dep.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </Button>
                         </div>
                       </td>
                     </tr>

@@ -31,7 +31,7 @@ const dashboardRoutes = [
 const adminRoutes = [
   { path: "/admin", label: "Admin Dashboard", description: "Platform overview" },
   { path: "/admin/users", label: "Users", description: "Manage users" },
-  { path: "/admin/investments", label: "Investments", description: "Manage investments" },
+  { path: "/admin/investments", label: "User Profits", description: "View user profits" },
   { path: "/admin/deposits", label: "Deposits", description: "Manage deposits" },
   { path: "/admin/withdrawals", label: "Withdrawals", description: "Manage withdrawals" },
   { path: "/admin/referrals", label: "Referrals", description: "Referral management" },

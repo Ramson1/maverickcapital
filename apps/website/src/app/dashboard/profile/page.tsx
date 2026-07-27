@@ -160,30 +160,57 @@ export default function ProfilePage() {
     setExpandedSection(expandedSection === section ? null : section);
   };
 
-  // KYC submission - stores documents as base64 in database
+  // KYC submission - stores documents as compressed base64 in database
   const handleKycSubmit = async () => {
     if (!user || !kycIdFile || !kycAddressFile || !kycSelfieFile) return;
     setKycSubmitting(true);
     try {
-      // Convert files to base64
-      const fileToBase64 = (file: File): Promise<string> =>
+      // Compress image to base64 with size limit
+      const compressImage = (file: File, maxWidth = 1200, quality = 0.7): Promise<string> =>
         new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error("Failed to read file"));
-          reader.readAsDataURL(file);
+          // For PDFs, just convert to base64 directly (no compression)
+          if (file.type === "application/pdf") {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error("Failed to read file"));
+            reader.readAsDataURL(file);
+            return;
+          }
+
+          const img = new Image();
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          img.onload = () => {
+            // Calculate new dimensions
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx?.drawImage(img, 0, 0, width, height);
+            // Convert to compressed JPEG base64
+            const compressed = canvas.toDataURL("image/jpeg", quality);
+            resolve(compressed);
+          };
+          img.onerror = () => reject(new Error("Failed to load image"));
+          img.src = URL.createObjectURL(file);
         });
 
       const [idData, addressData, selfieData] = await Promise.all([
-        fileToBase64(kycIdFile),
-        fileToBase64(kycAddressFile),
-        fileToBase64(kycSelfieFile),
+        compressImage(kycIdFile),
+        compressImage(kycAddressFile),
+        compressImage(kycSelfieFile),
       ]);
 
       // Delete any existing pending submission for this user
       await supabase.from("mc_kyc_submissions").delete().eq("user_id", user.id).eq("status", "pending");
 
-      // Insert new submission with base64 data
+      // Insert new submission with compressed base64 data
       const { error: insertError } = await supabase.from("mc_kyc_submissions").insert({
         user_id: user.id,
         id_document_data: idData,
