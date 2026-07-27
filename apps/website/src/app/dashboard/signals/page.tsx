@@ -8,14 +8,11 @@ import { Input } from "@/components/ui/input";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   TrendingUp, Lock, Star, Loader2, Check, Copy, Check as CheckIcon,
-  AlertCircle, X, FileImage, Trash2, Wallet, ArrowRight, CreditCard,
+  AlertCircle, X, FileImage, Trash2, ArrowRight, CreditCard,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { SignalsSkeleton } from "@/components/ui/PageSkeletons";
-import { useAccount, useSendTransaction } from "wagmi";
-import { parseEther } from "viem";
-import { WalletButton } from "@/components/web3/WalletButton";
 
 // ─── Constants ───────────────────────────────────────────────────────
 const SIGNAL_SUBSCRIPTION_PRICE = 50; // USDT/month
@@ -58,7 +55,44 @@ const riskColors: Record<string, string> = {
 
 // ─── Main Page ───────────────────────────────────────────────────────
 export default function SignalsPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
   const [activeTab, setActiveTab] = useState<"signals" | "subscription">("signals");
+  const [currentSub, setCurrentSub] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchSub = async () => {
+      const { data } = await supabase
+        .from("mc_subscriptions")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["active", "pending_confirmation"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (data && data.length > 0) setCurrentSub(data[0]);
+      setLoading(false);
+    };
+    fetchSub();
+  }, [user, supabase]);
+
+  const isSubscribed = currentSub?.status === "active";
+  const isPending = currentSub?.status === "pending_confirmation";
+  const hasAccess = isSubscribed || isPending;
+
+  if (loading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-brand-500" /></div>;
+  }
+
+  // Not subscribed — only show subscription card
+  if (!hasAccess) {
+    return (
+      <div className="space-y-6">
+        <SubscriptionSection currentSub={currentSub} onSubscribed={setCurrentSub} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -88,7 +122,11 @@ export default function SignalsPage() {
         </button>
       </div>
 
-      {activeTab === "signals" ? <SignalsList /> : <SubscriptionSection />}
+      {activeTab === "signals" ? (
+        <SignalsList />
+      ) : (
+        <SubscriptionSection currentSub={currentSub} onSubscribed={setCurrentSub} />
+      )}
     </div>
   );
 }
@@ -236,42 +274,41 @@ function SignalsList() {
 }
 
 // ─── Subscription Section ────────────────────────────────────────────
-function SubscriptionSection() {
+function SubscriptionSection({
+  currentSub,
+  onSubscribed,
+}: {
+  currentSub: Subscription | null;
+  onSubscribed: (sub: Subscription) => void;
+}) {
   const { user } = useAuth();
   const supabase = createClient();
 
-  const [currentSub, setCurrentSub] = useState<Subscription | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"manual" | "web3" | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchSub = async () => {
-      const { data } = await supabase
-        .from("mc_subscriptions")
-        .select("*")
-        .eq("user_id", user.id)
-        .in("status", ["active", "pending_confirmation"])
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (data && data.length > 0) {
-        setCurrentSub(data[0]);
-      }
-      setLoading(false);
-    };
-
-    fetchSub();
-  }, [user, supabase]);
+  const [paymentMethod, setPaymentMethod] = useState<"manual" | null>(null);
 
   const isActive = currentSub?.status === "active";
   const isPending = currentSub?.status === "pending_confirmation";
 
-  if (loading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-brand-500" /></div>;
-  }
+  // Calculate remaining time for active subscription
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number } | null>(null);
+  useEffect(() => {
+    if (!isActive || !currentSub?.end_date) return;
+    const calc = () => {
+      const now = new Date().getTime();
+      const end = new Date(currentSub.end_date).getTime();
+      const diff = end - now;
+      if (diff <= 0) { setTimeLeft(null); return; }
+      setTimeLeft({
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+        minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      });
+    };
+    calc();
+    const interval = setInterval(calc, 60_000);
+    return () => clearInterval(interval);
+  }, [isActive, currentSub?.end_date]);
 
   return (
     <>
@@ -316,10 +353,30 @@ function SubscriptionSection() {
               </ul>
 
               {isActive ? (
-                <div className="mt-6 rounded-lg border border-success-200 bg-success-50 p-3 dark:border-success-800 dark:bg-success-500/10">
-                  <p className="text-sm font-medium text-success-700 dark:text-success-400">
-                    Your subscription is active until {new Date(currentSub.end_date).toLocaleDateString()}
-                  </p>
+                <div className="mt-6 space-y-3">
+                  {/* Remaining time countdown */}
+                  {timeLeft && (
+                    <div className="rounded-lg border border-success-200 bg-success-50 p-4 dark:border-success-800 dark:bg-success-500/10">
+                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-success-600 dark:text-success-400">Subscription expires in</p>
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center rounded-lg bg-white px-4 py-2 shadow-sm dark:bg-surface-800">
+                          <span className="text-2xl font-bold text-success-700 dark:text-success-400">{timeLeft.days}</span>
+                          <span className="text-[10px] uppercase text-success-500">days</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-lg bg-white px-4 py-2 shadow-sm dark:bg-surface-800">
+                          <span className="text-2xl font-bold text-success-700 dark:text-success-400">{timeLeft.hours}</span>
+                          <span className="text-[10px] uppercase text-success-500">hrs</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-lg bg-white px-4 py-2 shadow-sm dark:bg-surface-800">
+                          <span className="text-2xl font-bold text-success-700 dark:text-success-400">{timeLeft.minutes}</span>
+                          <span className="text-[10px] uppercase text-success-500">min</span>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-success-600 dark:text-success-400">
+                        Until {new Date(currentSub.end_date).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : isPending ? (
                 <div className="mt-6 rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-800 dark:bg-warning-500/10">
@@ -340,7 +397,6 @@ function SubscriptionSection() {
                       userId={user?.id || ""}
                       onBack={() => { setShowPayment(false); setPaymentMethod(null); }}
                       onSubmitted={() => {
-                        // Refresh subscription status
                         setShowPayment(false);
                         setPaymentMethod(null);
                         supabase
@@ -351,7 +407,7 @@ function SubscriptionSection() {
                           .order("created_at", { ascending: false })
                           .limit(1)
                           .then(({ data }) => {
-                            if (data && data.length > 0) setCurrentSub(data[0]);
+                            if (data && data.length > 0) onSubscribed(data[0]);
                           });
                       }}
                       paymentMethod={paymentMethod}
@@ -381,8 +437,8 @@ function PaymentFlow({
   userId: string;
   onBack: () => void;
   onSubmitted: () => void;
-  paymentMethod: "manual" | "web3" | null;
-  setPaymentMethod: (m: "manual" | "web3" | null) => void;
+  paymentMethod: "manual" | null;
+  setPaymentMethod: (m: "manual" | null) => void;
 }) {
   if (!paymentMethod) {
     return (
@@ -401,18 +457,6 @@ function PaymentFlow({
               <p className="text-xs text-surface-500">Send USDT & upload receipt</p>
             </div>
           </button>
-          <button
-            onClick={() => setPaymentMethod("web3")}
-            className="flex items-center gap-3 rounded-xl border border-surface-200 p-4 transition-all hover:border-brand-300 hover:bg-brand-50 dark:border-surface-700 dark:hover:border-brand-600 dark:hover:bg-brand-500/10"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-50 dark:bg-success-500/10">
-              <Wallet className="h-5 w-5 text-success-600 dark:text-success-500" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-surface-900 dark:text-white">Web3 Payment</p>
-              <p className="text-xs text-surface-500">Connect wallet & pay directly</p>
-            </div>
-          </button>
         </div>
         <Button variant="ghost" size="sm" onClick={onBack}>&larr; Back</Button>
       </div>
@@ -421,12 +465,8 @@ function PaymentFlow({
 
   return (
     <div className="space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => setPaymentMethod(null)}>&larr; Back to methods</Button>
-      {paymentMethod === "manual" ? (
-        <ManualPaymentForm supabase={supabase} userId={userId} onDone={onSubmitted} />
-      ) : (
-        <Web3PaymentForm supabase={supabase} userId={userId} onDone={onSubmitted} />
-      )}
+      <Button variant="ghost" size="sm" onClick={() => setPaymentMethod(null)}>&larr; Back</Button>
+      <ManualPaymentForm supabase={supabase} userId={userId} onDone={onSubmitted} />
     </div>
   );
 }
@@ -707,122 +747,6 @@ function ManualPaymentForm({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Web3 Payment Form ───────────────────────────────────────────────
-function Web3PaymentForm({
-  supabase,
-  userId,
-  onDone,
-}: {
-  supabase: ReturnType<typeof createClient>;
-  userId: string;
-  onDone: () => void;
-}) {
-  const { isConnected, address } = useAccount();
-  const { sendTransactionAsync, isPending: isSending } = useSendTransaction();
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const adminAddress = process.env.NEXT_PUBLIC_ETHEREUM_WALLET || "0xe857421898d5b6d0c68ecb374349d18db9b59502";
-
-  // Convert $50 USDT to ETH equivalent (approximate - in production use oracle)
-  // For now we send a fixed ETH amount; user can also just send equivalent
-  const handleSend = async () => {
-    setError(null);
-    try {
-      // Send $50 worth of ETH (this is approximate; real implementation would use USDT contract)
-      // Using a placeholder ETH value - in production, query current ETH/USDT price
-      const ethAmount = "0.015"; // approximate $50 worth - adjust as needed
-
-      const hash = await sendTransactionAsync({
-        to: adminAddress as `0x${string}`,
-        value: parseEther(ethAmount),
-      });
-
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 1);
-
-      await supabase.from("mc_subscriptions").insert({
-        user_id: userId,
-        plan_id: "signal-premium",
-        status: "pending_confirmation",
-        start_date: new Date().toISOString(),
-        end_date: endDate.toISOString(),
-        tx_hash: hash,
-        amount: SIGNAL_SUBSCRIPTION_PRICE,
-      });
-
-      setSuccess(true);
-      setTimeout(onDone, 2000);
-    } catch (err: any) {
-      if (err?.code === 4001) {
-        setError("Transaction rejected. Please approve in your wallet.");
-      } else {
-        setError(err?.shortMessage || err?.message || "Transaction failed");
-      }
-    }
-  };
-
-  if (success) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-6">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success-50 dark:bg-success-500/10">
-          <Check className="h-6 w-6 text-success-600 dark:text-success-500" />
-        </div>
-        <p className="font-semibold text-surface-900 dark:text-white">Payment Submitted!</p>
-        <p className="text-sm text-surface-500">Your subscription will be activated once confirmed.</p>
-      </div>
-    );
-  }
-
-  if (!isConnected) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-6">
-        <p className="text-sm text-surface-500">Connect your wallet to pay with Web3</p>
-        <WalletButton />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700 dark:border-danger-800 dark:bg-danger-500/10 dark:text-danger-400">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 rounded-lg border border-success-200 bg-success-50 p-3 dark:border-success-800 dark:bg-success-500/10">
-        <div className="h-2 w-2 rounded-full bg-success-500" />
-        <span className="text-sm font-medium text-success-700 dark:text-success-400">
-          Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
-        </span>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Sending to</label>
-        <div className="rounded-lg border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800">
-          <p className="font-mono text-sm text-surface-900 dark:text-white">{adminAddress}</p>
-          <p className="mt-1 text-xs text-surface-500">Platform payment address</p>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-brand-200 bg-brand-50 p-4 dark:border-brand-800 dark:bg-brand-500/10">
-        <p className="text-sm font-medium text-brand-700 dark:text-brand-400">Amount: {formatCurrency(SIGNAL_SUBSCRIPTION_PRICE)} USDT (paid in ETH equivalent)</p>
-      </div>
-
-      <div className="flex gap-3">
-        <Button onClick={handleSend} disabled={isSending}>
-          {isSending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : (
-            <><ArrowRight className="mr-2 h-4 w-4" />Pay & Subscribe</>
-          )}
-        </Button>
-        <Button variant="outline" onClick={onDone}>Cancel</Button>
-      </div>
     </div>
   );
 }

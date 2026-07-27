@@ -48,6 +48,7 @@ export default function AdminReferralsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [processing, setProcessing] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -134,6 +135,40 @@ export default function AdminReferralsPage() {
     }
     return true;
   });
+
+  const handleApprove = async (ref: ReferralRecord) => {
+    setProcessing(ref.id);
+    const { error } = await supabase
+      .from("mc_referrals")
+      .update({ status: "completed" })
+      .eq("id", ref.id);
+    if (!error) {
+      setReferrals((prev) => prev.map((r) => r.id === ref.id ? { ...r, status: "completed" } : r));
+    }
+    setProcessing(null);
+  };
+
+  const handleReject = async (ref: ReferralRecord) => {
+    setProcessing(ref.id);
+    const { error } = await supabase
+      .from("mc_referrals")
+      .update({ status: "rejected" })
+      .eq("id", ref.id);
+    if (!error) {
+      setReferrals((prev) => prev.map((r) => r.id === ref.id ? { ...r, status: "rejected" } : r));
+    }
+    setProcessing(null);
+  };
+
+  const handleDelete = async (ref: ReferralRecord) => {
+    if (!confirm(`Delete referral record for ${ref.referred_name}?`)) return;
+    setProcessing(ref.id);
+    const { error } = await supabase.from("mc_referrals").delete().eq("id", ref.id);
+    if (!error) {
+      setReferrals((prev) => prev.filter((r) => r.id !== ref.id));
+    }
+    setProcessing(null);
+  };
 
   if (loading) {
     return <TablePageSkeleton />;
@@ -229,12 +264,13 @@ export default function AdminReferralsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Commission (5%)</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase text-surface-500 dark:text-surface-400">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-surface-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-surface-400">
                       No referrals found
                     </td>
                   </tr>
@@ -267,6 +303,38 @@ export default function AdminReferralsPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-surface-600 dark:text-surface-400">
                         {new Date(ref.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-1">
+                          {ref.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(ref)}
+                                disabled={processing === ref.id}
+                                className="rounded p-1 text-success-600 transition-colors hover:bg-success-50 dark:hover:bg-success-500/10"
+                                title="Approve"
+                              >
+                                {processing === ref.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                              </button>
+                              <button
+                                onClick={() => handleReject(ref)}
+                                disabled={processing === ref.id}
+                                className="rounded p-1 text-danger-600 transition-colors hover:bg-danger-50 dark:hover:bg-danger-500/10"
+                                title="Reject"
+                              >
+                                {processing === ref.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => handleDelete(ref)}
+                            disabled={processing === ref.id}
+                            className="rounded p-1 text-danger-600 transition-colors hover:bg-danger-50 dark:hover:bg-danger-500/10"
+                            title="Delete"
+                          >
+                            {processing === ref.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

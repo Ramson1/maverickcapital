@@ -22,6 +22,7 @@ import {
   Shield,
   X,
   Users,
+  Bell,
 } from "lucide-react";
 
 const navigation = [
@@ -31,6 +32,7 @@ const navigation = [
   { name: "Signals", href: "/dashboard/signals", icon: Signal },
   { name: "Referrals", href: "/dashboard/referrals", icon: Users },
   { name: "News", href: "/dashboard/news", icon: Newspaper },
+  { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -44,10 +46,11 @@ const adminNavigation = [
   { name: "Referrals", href: "/admin/referrals", icon: Users },
   { name: "Signals", href: "/admin/signals", icon: Signal },
   { name: "News", href: "/admin/news", icon: Newspaper },
+  { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Support", href: "/admin/support", icon: HeadphonesIcon },
   { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { name: "Audit Logs", href: "/admin/audit-logs", icon: ArrowLeftRight },
-  { name: "CMS", href: "/admin/cms", icon: Newspaper },
+  { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
 interface SidebarProps {

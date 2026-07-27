@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Plus, MessageSquare, Clock, CheckCircle2, AlertCircle, Loader2,
-  Send, Paperclip, Smile, MoreVertical, Reply, Pencil, Trash2,
+  Send, Paperclip, MoreVertical, Reply, Pencil, Trash2,
   X, Image as ImageIcon, ChevronLeft, ArrowLeft, Check, CheckCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -42,28 +42,6 @@ interface Message {
   deleted: boolean;
   created_at: string;
 }
-
-// ─── Emoji Data ──────────────────────────────────────────────────────
-const EMOJI_CATEGORIES = [
-  {
-    name: "Smileys",
-    emojis: ["😀", "😃", "😄", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "😉", "😌", "😍", "🥰", "😘", "😗", "😋", "😛", "😜", "🤪", "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕"],
-  },
-  {
-    name: "Gestures",
-    emojis: ["👍", "👎", "👌", "🤌", "✌️", "🤞", "🤟", "🤘", "🤙", "👈", "👉", "👆", "👇", "☝️", "✋", "🤚", "🖐️", "🖖", "👋", "🤝", "🙏", "💪", "🦾", "🖕"],
-  },
-  {
-    name: "Hearts",
-    emojis: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝"],
-  },
-  {
-    name: "Objects",
-    emojis: ["🔥", "⭐", "💫", "✨", "🎉", "🎊", "💯", "💰", "💵", "📈", "📉", "✅", "❌", "⚠️", "🚀", "💡", "📌", "📎", "🔗", "📧", "📱", "💻", "🖥️"],
-  },
-];
-
-const ALL_EMOJIS = EMOJI_CATEGORIES.flatMap((c) => c.emojis);
 
 // ─── Status Config ───────────────────────────────────────────────────
 const statusConfig: Record<string, { label: string; variant: "default" | "success" | "warning" | "destructive" }> = {
@@ -356,7 +334,6 @@ function ChatView({
 }) {
   const { error: showError } = useToast();
   const [inputValue, setInputValue] = useState("");
-  const [showEmoji, setShowEmoji] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -364,22 +341,12 @@ function ChatView({
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const emojiRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // Close emoji on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
-    };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, []);
 
   // Close menu on outside click
   useEffect(() => {
@@ -541,7 +508,6 @@ function ChatView({
     setEditingMsg(msg);
     setEditValue(msg.body);
     setMenuOpen(null);
-    setShowEmoji(false);
     inputRef.current?.focus();
   };
 
@@ -685,31 +651,6 @@ function ChatView({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Emoji Picker */}
-      {showEmoji && (
-        <div ref={emojiRef} className="border-t border-surface-200 bg-white p-3 dark:border-surface-700 dark:bg-surface-900">
-          <div className="mb-2 flex gap-2">
-            {EMOJI_CATEGORIES.map((cat) => (
-              <span key={cat.name} className="text-xs text-surface-400">{cat.emojis[0]} {cat.name}</span>
-            ))}
-          </div>
-          <div className="grid max-h-40 grid-cols-8 gap-1 overflow-y-auto sm:grid-cols-12">
-            {ALL_EMOJIS.map((emoji, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  setInputValue((prev) => prev + emoji);
-                  inputRef.current?.focus();
-                }}
-                className="rounded p-1 text-xl hover:bg-surface-100 dark:hover:bg-surface-800"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Reply/Edit Preview Bar */}
       {(replyTo || editingMsg) && (
         <div className="flex items-center gap-2 border-t border-surface-200 bg-surface-50 px-4 py-2 dark:border-surface-700 dark:bg-surface-800">
@@ -741,14 +682,6 @@ function ChatView({
           className="shrink-0 rounded-lg p-2 text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-300"
         >
           <Paperclip className="h-5 w-5" />
-        </button>
-
-        {/* Emoji toggle */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setShowEmoji(!showEmoji); }}
-          className={cn("shrink-0 rounded-lg p-2 transition-colors hover:bg-surface-100 dark:hover:bg-surface-800", showEmoji ? "text-brand-500" : "text-surface-400 hover:text-surface-600 dark:hover:text-surface-300")}
-        >
-          <Smile className="h-5 w-5" />
         </button>
 
         {/* Text input */}

@@ -87,7 +87,7 @@ export function DashboardContent() {
         const [depositsRes, withdrawalsRes, investmentsRes] = await Promise.all([
           supabase.from("mc_deposits").select("id, amount, currency, status, submitted_at").eq("user_id", user.id).order("submitted_at", { ascending: false }).limit(5),
           supabase.from("mc_withdrawals").select("id, amount, currency, status, submitted_at").eq("user_id", user.id).order("submitted_at", { ascending: false }).limit(5),
-          supabase.from("mc_investments").select("id, amount, currency, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+          supabase.from("mc_investments").select("id, amount, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
         ]);
 
         if (depositsRes.error) console.error("Dashboard deposits fetch error:", depositsRes.error);
@@ -98,7 +98,7 @@ export function DashboardContent() {
         const allTx: Transaction[] = [
           ...(depositsRes.data || []).map((d) => ({ id: `dep-${d.id}`, type: "deposit", amount: Number(d.amount), currency: d.currency, status: d.status, created_at: d.submitted_at })),
           ...(withdrawalsRes.data || []).map((w) => ({ id: `wd-${w.id}`, type: "withdrawal", amount: Number(w.amount), currency: w.currency, status: w.status, created_at: w.submitted_at })),
-          ...(investmentsRes.data || []).map((i) => ({ id: `inv-${i.id}`, type: "investment", amount: Number(i.amount), currency: i.currency, status: i.status, created_at: i.created_at })),
+          ...(investmentsRes.data || []).map((i) => ({ id: `inv-${i.id}`, type: "investment", amount: Number(i.amount), currency: "USDT", status: i.status, created_at: i.created_at })),
         ];
         allTx.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 

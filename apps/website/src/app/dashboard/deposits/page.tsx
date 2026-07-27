@@ -18,12 +18,7 @@ import { TablePageSkeleton } from "@/components/ui/PageSkeletons";
 import Link from "next/link";
 
 // ─── USDT TRC20 Only ─────────────────────────────────────────────────
-const DEPOSIT_CURRENCY = "USDT";
-const DEPOSIT_NETWORK = "TRC20 (Tron)";
-const ADMIN_TRON_WALLET = process.env.NEXT_PUBLIC_TRON_WALLET || "";
 const LS_KEY = (userId: string) => `mc_deposit_draft_${userId}`;
-const MIN_DEPOSIT = 50; // Minimum deposit amount in USDT
-const MIN_WITHDRAWAL = 10; // Minimum withdrawal amount in USDT
 
 // ─── Investment Plans ─────────────────────────────────────────────────
 const INVESTMENT_PLANS = {
@@ -101,6 +96,13 @@ export default function DepositsPage() {
   // Deposit form state
   const [showDepositForm, setShowDepositForm] = useState(false);
 
+  // Wallet settings from admin
+  const [depositWallet, setDepositWallet] = useState("");
+  const [depositNetwork, setDepositNetwork] = useState("TRC20 (Tron)");
+  const [depositCurrency, setDepositCurrency] = useState("USDT");
+  const [minDeposit, setMinDeposit] = useState(50);
+  const [minWithdrawal, setMinWithdrawal] = useState(10);
+
   // Withdrawal form state
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
@@ -171,6 +173,18 @@ export default function DepositsPage() {
         setUnlockedInvestments(unlocked);
       }
 
+      // Fetch platform settings
+      const { data: settingsData } = await supabase.from("mc_settings").select("key, value");
+      if (settingsData) {
+        const map: Record<string, string> = {};
+        settingsData.forEach((r) => { map[r.key] = r.value; });
+        if (map.deposit_wallet_address) setDepositWallet(map.deposit_wallet_address);
+        if (map.deposit_network) setDepositNetwork(map.deposit_network);
+        if (map.deposit_currency) setDepositCurrency(map.deposit_currency);
+        if (map.min_deposit) setMinDeposit(Number(map.min_deposit));
+        if (map.min_withdrawal) setMinWithdrawal(Number(map.min_withdrawal));
+      }
+
       setLoading(false);
     };
 
@@ -185,7 +199,7 @@ export default function DepositsPage() {
     if (!user) return;
     const amount = parseFloat(withdrawalAmount);
     if (!amount || amount <= 0) { setWithdrawalError("Please enter a valid amount"); return; }
-    if (amount < MIN_WITHDRAWAL) { setWithdrawalError(`Minimum withdrawal amount is $${MIN_WITHDRAWAL}`); return; }
+    if (amount < minWithdrawal) { setWithdrawalError(`Minimum withdrawal amount is $${minWithdrawal}`); return; }
     if (!withdrawalAddress) { setWithdrawalError("Please set your withdrawal address in your Profile first"); return; }
     if (amount > availableBalance) { setWithdrawalError(`Insufficient balance. Available: ${formatCurrency(availableBalance)}`); return; }
 
@@ -197,8 +211,8 @@ export default function DepositsPage() {
       .insert({
         user_id: user.id,
         amount,
-        currency: DEPOSIT_CURRENCY,
-        network: DEPOSIT_NETWORK,
+        currency: depositCurrency,
+        network: depositNetwork,
         destination_address: withdrawalAddress,
         status: "pending",
       })
@@ -299,6 +313,10 @@ export default function DepositsPage() {
             <DepositForm
               supabase={supabase}
               userId={user?.id || ""}
+              walletAddress={depositWallet}
+              network={depositNetwork}
+              currency={depositCurrency}
+              minDeposit={minDeposit}
               onDepositSubmitted={() => {
                 setShowDepositForm(false);
                 // Refresh deposits
@@ -492,8 +510,8 @@ export default function DepositsPage() {
                       {withdrawalAmount && parseFloat(withdrawalAmount) > availableBalance && (
                         <p className="text-xs text-danger-600 dark:text-danger-400">Amount exceeds available balance</p>
                       )}
-                      {withdrawalAmount && parseFloat(withdrawalAmount) > 0 && parseFloat(withdrawalAmount) < MIN_WITHDRAWAL && (
-                        <p className="text-xs text-warning-600 dark:text-warning-400">Minimum withdrawal amount is ${MIN_WITHDRAWAL}</p>
+                      {withdrawalAmount && parseFloat(withdrawalAmount) > 0 && parseFloat(withdrawalAmount) < minWithdrawal && (
+                        <p className="text-xs text-warning-600 dark:text-warning-400">Minimum withdrawal amount is ${minWithdrawal}</p>
                       )}
                     </div>
 
@@ -510,7 +528,7 @@ export default function DepositsPage() {
                     </p>
 
                     <div className="flex gap-3">
-                      <Button onClick={handleSubmitWithdrawal} disabled={submitting || !withdrawalAmount || parseFloat(withdrawalAmount) < MIN_WITHDRAWAL || parseFloat(withdrawalAmount) > availableBalance}>
+                      <Button onClick={handleSubmitWithdrawal} disabled={submitting || !withdrawalAmount || parseFloat(withdrawalAmount) < minWithdrawal || parseFloat(withdrawalAmount) > availableBalance}>
                         {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Request"}
                       </Button>
                       <Button variant="outline" onClick={() => { setShowWithdrawalForm(false); setWithdrawalError(null); }}>Cancel</Button>
@@ -596,11 +614,19 @@ export default function DepositsPage() {
 function DepositForm({
   supabase,
   userId,
+  walletAddress,
+  network,
+  currency,
+  minDeposit,
   onDepositSubmitted,
   onClose,
 }: {
   supabase: ReturnType<typeof createClient>;
   userId: string;
+  walletAddress: string;
+  network: string;
+  currency: string;
+  minDeposit: number;
   onDepositSubmitted: () => void;
   onClose: () => void;
 }) {
@@ -614,6 +640,10 @@ function DepositForm({
         <ManualDepositForm
           supabase={supabase}
           userId={userId}
+          walletAddress={walletAddress}
+          network={network}
+          currency={currency}
+          minDeposit={minDeposit}
           onDone={onDepositSubmitted}
           onCancel={onClose}
         />
@@ -639,11 +669,19 @@ type DepositDraft = {
 function ManualDepositForm({
   supabase,
   userId,
+  walletAddress,
+  network,
+  currency,
+  minDeposit,
   onDone,
   onCancel,
 }: {
   supabase: ReturnType<typeof createClient>;
   userId: string;
+  walletAddress: string;
+  network: string;
+  currency: string;
+  minDeposit: number;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -676,7 +714,7 @@ function ManualDepositForm({
   };
 
   const copyAddress = () => {
-    navigator.clipboard.writeText(ADMIN_TRON_WALLET);
+    navigator.clipboard.writeText(walletAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -718,7 +756,7 @@ function ManualDepositForm({
     const parsedAmount = parseFloat(draft.amount);
     const plan = INVESTMENT_PLANS[draft.plan];
     if (!parsedAmount || parsedAmount <= 0) { setError("Please enter a valid amount"); return; }
-    if (parsedAmount < MIN_DEPOSIT) { setError(`Minimum deposit amount is $${MIN_DEPOSIT}`); return; }
+    if (parsedAmount < minDeposit) { setError(`Minimum deposit amount is $${minDeposit}`); return; }
     if (parsedAmount < plan.minInvestment) { setError(`Minimum investment for ${plan.name} plan is $${plan.minInvestment}`); return; }
     setError(null);
     const next = { ...draft, step: 2 as const };
@@ -736,7 +774,7 @@ function ManualDepositForm({
   const handleSubmit = async () => {
     const parsedAmount = parseFloat(draft.amount);
     if (!parsedAmount || parsedAmount <= 0) { setError("Please enter a valid amount"); return; }
-    if (parsedAmount < MIN_DEPOSIT) { setError(`Minimum deposit amount is $${MIN_DEPOSIT}`); return; }
+    if (parsedAmount < minDeposit) { setError(`Minimum deposit amount is $${minDeposit}`); return; }
     if (!draft.txHash.trim()) { setError("Please enter the transaction hash"); return; }
     if (!proofFile) { setError("Please upload proof of payment"); return; }
 
@@ -766,8 +804,8 @@ function ManualDepositForm({
       .insert({
         user_id: userId,
         amount: parsedAmount,
-        currency: DEPOSIT_CURRENCY,
-        network: DEPOSIT_NETWORK,
+        currency: currency,
+        network: network,
         plan_name: draft.plan,
         lock_period_months: plan.lockPeriodMonths,
         lock_end_date: lockEndDate.toISOString(),
@@ -893,14 +931,14 @@ function ManualDepositForm({
                 <Copy className="h-4 w-4 text-brand-600 dark:text-brand-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-surface-900 dark:text-white">Send USDT to this address</p>
-                <p className="text-xs text-surface-500 dark:text-surface-400">TRC20 (Tron) network only</p>
+                <p className="text-sm font-semibold text-surface-900 dark:text-white">Send {currency} to this address</p>
+                <p className="text-xs text-surface-500 dark:text-surface-400">{network} network only</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-white p-3 dark:border-brand-800 dark:bg-surface-900">
               <p className="flex-1 break-all font-mono text-sm text-surface-900 dark:text-white">
-                {ADMIN_TRON_WALLET || "Wallet address not configured"}
+                {walletAddress || "Wallet address not configured"}
               </p>
               <button
                 onClick={copyAddress}
@@ -912,7 +950,7 @@ function ManualDepositForm({
 
             <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-500/10">
               <p className="text-xs text-amber-800 dark:text-amber-300">
-                <strong>Important:</strong> Only send <strong>USDT</strong> on the <strong>TRC20 (Tron)</strong> network.
+                <strong>Important:</strong> Only send <strong>{currency}</strong> on the <strong>{network}</strong> network.
                 Sending other tokens or using a different network will result in permanent loss.
               </p>
             </div>
@@ -939,10 +977,10 @@ function ManualDepositForm({
           )}
 
           {/* Minimum deposit warning */}
-          {draft.amount && parseFloat(draft.amount) > 0 && parseFloat(draft.amount) < MIN_DEPOSIT && (
+          {draft.amount && parseFloat(draft.amount) > 0 && parseFloat(draft.amount) < minDeposit && (
             <div className="flex items-center gap-2 rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm text-warning-700 dark:border-warning-800 dark:bg-warning-500/10 dark:text-warning-400">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              Minimum deposit amount is ${MIN_DEPOSIT}
+              Minimum deposit amount is ${minDeposit}
             </div>
           )}
 
