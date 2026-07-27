@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npx --prefix apps/website next build",
+  "outputDirectory": "apps/website/.next",
+  "installCommand": "npm install"
+}
