@@ -115,7 +115,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         .select("mc_roles(name)")
         .eq("user_id", user.id);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const roles = (roleData || []).flatMap((r: any) =>
         Array.isArray(r.mc_roles) ? r.mc_roles : [r.mc_roles]
       ).filter(Boolean);
