@@ -107,7 +107,7 @@ export function HeroSection() {
 
         {/* Trust badges */}
         <motion.div
-          className="mt-16 flex w-full max-w-3xl flex-wrap justify-center gap-4"
+          className="mt-8 flex w-full max-w-3xl flex-wrap justify-center gap-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}

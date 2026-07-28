@@ -1,49 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Lock, TrendingUp, Shield } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useHardCap } from "@/hooks/useHardCap";
 
 export function HardCapSection() {
-  const supabase = createClient();
-  const [hardCap, setHardCap] = useState(500000);
-  const [totalRaised, setTotalRaised] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data: config } = await supabase
-          .from("mc_system_config")
-          .select("value")
-          .eq("key", "hard_cap")
-          .single();
-        setHardCap(config?.value?.amount ?? 500000);
-
-        const { data: deposits } = await supabase
-          .from("mc_deposits")
-          .select("amount")
-          .eq("status", "approved");
-        const total = deposits?.reduce((s, d) => s + Number(d.amount), 0) || 0;
-
-        if (total === 0) {
-          const { data: profiles } = await supabase.from("mc_profiles").select("total_investment");
-          const profileTotal = profiles?.reduce((s, p) => s + Number(p.total_investment || 0), 0) || 0;
-          setTotalRaised(profileTotal);
-        } else {
-          setTotalRaised(total);
-        }
-      } catch {
-        // use defaults
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [supabase]);
-
-  const percentage = hardCap > 0 ? Math.min((totalRaised / hardCap) * 100, 100) : 0;
+  // Live figures from the database (mc_settings + get_total_capital_raised RPC)
+  const { hardCap, totalRaised, percentage, loading } = useHardCap();
 
   const formatCompact = (n: number) => {
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -127,16 +90,16 @@ export function HardCapSection() {
           <div className="mt-3 flex items-center justify-between text-xs">
             <span className="text-brand-300/60">{percentage.toFixed(1)}% filled</span>
             <span className="text-brand-300/60">
-              {loading ? "" : `$${(hardCap - totalRaised).toLocaleString()} remaining`}
+              {loading ? "" : `$${Math.max(hardCap - totalRaised, 0).toLocaleString()} remaining`}
             </span>
           </div>
 
           {/* Info pills */}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-brand-200">
+            {/* <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-brand-200">
               <Shield className="h-3.5 w-3.5 text-brand-300" />
               SEC Regulated Structure
-            </div>
+            </div> */}
             <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-brand-200">
               <Lock className="h-3.5 w-3.5 text-brand-300" />
               Window Closes at Cap
