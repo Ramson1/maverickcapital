@@ -18,9 +18,9 @@ export function OrganizationSchema() {
     "email": "Maverikcapital@gmail.com",
     "address": {
       "@type": "PostalAddress",
-      "streetAddress": "123 Marina Road, Lagos Island",
-      "addressLocality": "Lagos",
-      "addressCountry": "NG"
+      "streetAddress": "Yeni Organize Sanayi Bölgesi, 5. Sk",
+      "addressLocality": "Kızılay",
+      "addressCountry": "CY"
     },
     "sameAs": [
       "https://www.facebook.com/maverickcapital",

@@ -40,12 +40,14 @@ export default function NotificationsPage() {
 
   const fetchNotifications = async () => {
     if (!user) return;
+    // Include both personal notifications and broadcasts (user_id is null)
     const { data, error } = await supabase
       .from("mc_notifications")
       .select("*")
-      .eq("user_id", user.id)
+      .or(`user_id.eq.${user.id},user_id.is.null`)
       .order("created_at", { ascending: false });
 
+    if (error) console.error("Notifications fetch error:", error.message || error);
     if (!error && data) setNotifications(data);
     setLoading(false);
   };

@@ -10,7 +10,7 @@ import { TickerSection } from "@/components/sections/TickerSection";
 import { TestimonialsSection } from "@/components/sections/TestimonialsSection";
 import { FAQSection } from "@/components/sections/FAQSection";
 import { CTASection } from "@/components/sections/CTASection";
-import { TransactionNotification } from "@/components/sections/TransactionNotification";
+// import { TransactionNotification } from "@/components/sections/TransactionNotification";
 import { BlogSection } from "@/components/sections/BlogSection";
 import { OrganizationSchema, FAQSchema, ServiceSchema } from "@/components/StructuredData";
 
@@ -33,7 +33,8 @@ export default function HomePage() {
       <BlogSection />
       <FAQSection />
       <CTASection />
-      <TransactionNotification />
+      {/* Live activity popup disabled for now */}
+      {/* <TransactionNotification /> */}
     </>
   );
 }

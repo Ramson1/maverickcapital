@@ -12,7 +12,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [fullName, setFullName] = useState("John Doe");
   const [email] = useState("john@example.com");
-  const [phone, setPhone] = useState("+1 234 567 8900");
+  const [phone, setPhone] = useState("+90 392 000 0000");
 
   return (
     <div className="space-y-6">

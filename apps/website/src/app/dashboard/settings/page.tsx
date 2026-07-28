@@ -3,23 +3,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "next-themes";
-import { Shield, Bell, Palette, Fingerprint, Key, Trash2, Download, Monitor, Smartphone, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { Shield, Bell, Palette, Key, Download, Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast } from "@/providers/ToastProvider";
 import { useRouter } from "next/navigation";
-
-interface Session {
-  id: string;
-  device_info: Record<string, string> | null;
-  ip_address: string | null;
-  last_active: string;
-  is_revoked: boolean;
-  created_at: string;
-}
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -31,8 +21,6 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState({ email: true, deposits: true, withdrawals: true, signals: true, news: true });
   const [savingNotifications, setSavingNotifications] = useState(false);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loadingSessions, setLoadingSessions] = useState(true);
 
   // Change password state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -44,9 +32,6 @@ export default function SettingsPage() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
 
-  // Biometric state
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
-
   // Delete account state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -54,25 +39,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    // Check if biometric is available and previously enabled
-    const saved = localStorage.getItem("biometric_enabled");
-    if (saved === "true") setBiometricEnabled(true);
   }, []);
 
   useEffect(() => {
-    const fetchSessions = async () => {
-      if (!user) return;
-      const { data, error } = await supabase
-        .from("mc_device_sessions")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_revoked", false)
-        .order("last_active", { ascending: false });
-
-      if (!error && data) setSessions(data);
-      setLoadingSessions(false);
-    };
-
     const fetchNotifications = async () => {
       if (!user) return;
       const { data } = await supabase
@@ -92,18 +61,8 @@ export default function SettingsPage() {
       }
     };
 
-    fetchSessions();
     fetchNotifications();
   }, [user]);
-
-  const revokeSession = async (sessionId: string) => {
-    await supabase
-      .from("mc_device_sessions")
-      .update({ is_revoked: true })
-      .eq("id", sessionId);
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    showSuccess("Session Revoked", "The session has been revoked successfully.");
-  };
 
   // Save notification preferences to database
   const updateNotification = async (key: string, value: boolean) => {
@@ -174,23 +133,6 @@ export default function SettingsPage() {
     }
   };
 
-  const getDeviceLabel = (session: Session) => {
-    if (session.device_info) {
-      const browser = session.device_info.browser || session.device_info.userAgent || "Unknown";
-      const os = session.device_info.os || "";
-      return `${browser}${os ? ` on ${os}` : ""}`;
-    }
-    return "Unknown device";
-  };
-
-  const getDeviceIcon = (session: Session) => {
-    const info = session.device_info?.deviceType || session.device_info?.userAgent || "";
-    if (info.toLowerCase().includes("mobile") || info.toLowerCase().includes("iphone") || info.toLowerCase().includes("android")) {
-      return Smartphone;
-    }
-    return Monitor;
-  };
-
   // Change password handler
   const handleChangePassword = async () => {
     setPasswordError("");
@@ -218,35 +160,6 @@ export default function SettingsPage() {
       setPasswordError("Failed to change password. Please try again.");
     } finally {
       setChangingPassword(false);
-    }
-  };
-
-  // Biometric toggle
-  const handleBiometricToggle = async () => {
-    if (!biometricEnabled) {
-      // Try to use WebAuthn if available
-      if (window.PublicKeyCredential) {
-        try {
-          // Check if biometric auth is available on device
-          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-          if (available) {
-            setBiometricEnabled(true);
-            localStorage.setItem("biometric_enabled", "true");
-          } else {
-            showError("Biometric Not Available", "Biometric authentication is not available on this device.");
-          }
-        } catch {
-          // Fallback: just enable it locally
-          setBiometricEnabled(true);
-          localStorage.setItem("biometric_enabled", "true");
-        }
-      } else {
-        setBiometricEnabled(true);
-        localStorage.setItem("biometric_enabled", "true");
-      }
-    } else {
-      setBiometricEnabled(false);
-      localStorage.setItem("biometric_enabled", "false");
     }
   };
 
@@ -358,62 +271,6 @@ export default function SettingsPage() {
               <p className="text-sm text-surface-500">Change your account password</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => setShowPasswordModal(true)}>Change Password</Button>
-          </div>
-
-          {/* Biometric Authentication */}
-          <div className="flex items-center justify-between rounded-lg border border-surface-200 p-4 dark:border-surface-700">
-            <div className="flex items-center gap-2">
-              <Fingerprint className="h-5 w-5 text-surface-500" />
-              <div>
-                <p className="font-medium text-surface-900 dark:text-white">Biometric Authentication</p>
-                <p className="text-sm text-surface-500">Use fingerprint or face recognition</p>
-              </div>
-            </div>
-            <button
-              onClick={handleBiometricToggle}
-              className={`relative h-6 w-11 rounded-full transition-colors ${biometricEnabled ? "bg-brand-600" : "bg-surface-200 dark:bg-surface-700"}`}
-            >
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${biometricEnabled ? "left-[22px]" : "left-0.5"}`} />
-            </button>
-          </div>
-
-          {/* Active Sessions */}
-          <div className="rounded-lg border border-surface-200 p-4 dark:border-surface-700">
-            <p className="font-medium text-surface-900 dark:text-white mb-3">Active Sessions</p>
-            {loadingSessions ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-surface-400" />
-              </div>
-            ) : sessions.length === 0 ? (
-              <p className="text-sm text-surface-500 py-2">No active sessions found</p>
-            ) : (
-              <div className="space-y-3">
-                {sessions.map((session, idx) => {
-                  const Icon = getDeviceIcon(session);
-                  return (
-                    <div key={session.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Icon className="h-4 w-4 text-surface-500" />
-                        <div>
-                          <p className="text-sm font-medium text-surface-900 dark:text-white">{getDeviceLabel(session)}</p>
-                          <p className="text-xs text-surface-500">
-                            {idx === 0 ? "Current session" : `Last active ${new Date(session.last_active).toLocaleString()}`}
-                            {session.ip_address && ` · ${session.ip_address}`}
-                          </p>
-                        </div>
-                      </div>
-                      {idx === 0 ? (
-                        <Badge variant="success">Active</Badge>
-                      ) : (
-                        <Button variant="ghost" size="sm" className="text-danger-600" onClick={() => revokeSession(session.id)}>
-                          Revoke
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

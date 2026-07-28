@@ -42,7 +42,7 @@ const contactInfo = [
   {
     icon: MapPin,
     title: "Office Address",
-    detail: "123 Marina Road, Lagos Island, Lagos, Nigeria",
+    detail: "Yeni Organize Sanayi Bölgesi, 5. Sk, Kızılay 0392, Cyprus",
   },
   {
     icon: Mail,
@@ -53,7 +53,7 @@ const contactInfo = [
   {
     icon: Clock,
     title: "Working Hours",
-    detail: "Mon-Fri: 8AM - 6PM WAT, Sat: 9AM - 2PM WAT",
+    detail: "Mon-Fri: 8AM - 6PM EET, Sat: 9AM - 2PM EET",
   },
 ];
 
@@ -254,7 +254,7 @@ export default function ContactPage() {
                       <input
                         id="phone"
                         type="tel"
-                        placeholder="+234 800 000 0000"
+                        placeholder="+90 392 000 0000"
                         {...register("phone")}
                         className={cn(
                           "w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
@@ -445,20 +445,31 @@ export default function ContactPage() {
               Find Us on the Map
             </h2>
             <p className="mb-8 text-center text-sm text-slate-500">
-              Visit our office in the heart of Lagos Island
+              Visit our office in Kızılay, Cyprus
             </p>
             <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-glass">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3963.958739627689!2d3.3915!3d6.4541!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x103b8b2ae68280c1%3A0xdc9e81aee00e62db!2sLagos%20Island%2C%20Lagos!5e0!3m2!1sen!2sng!4v1700000000000!5m2!1sen!2sng"
+                src="https://www.google.com/maps?q=Yeni+Organize+Sanayi+B%C3%B6lgesi+5.+Sk+K%C4%B1z%C4%B1lay+Cyprus&z=15&output=embed"
                 width="100%"
-                height="400"
+                height="450"
                 style={{ border: 0 }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                title="Maverick Capital Office Location"
+                title="Maverick Capital Office Location — Yeni Organize Sanayi Bölgesi, 5. Sk, Kızılay, Cyprus"
                 className="w-full"
               />
+            </div>
+            <div className="mt-4 text-center">
+              <a
+                href="https://www.google.com/maps/search/?api=1&query=Yeni+Organize+Sanayi+B%C3%B6lgesi+5.+Sk+K%C4%B1z%C4%B1lay+Cyprus"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700"
+              >
+                <MapPin size={16} />
+                Open in Google Maps
+              </a>
             </div>
           </motion.div>
         </div>

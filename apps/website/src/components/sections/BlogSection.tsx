@@ -39,11 +39,11 @@ const blogPosts = [
   },
   {
     id: 5,
-    title: "Nigeria Leads African Crypto Adoption with New Framework",
-    excerpt: "Nigerian government introduces comprehensive crypto regulations, positioning the country as a continental leader in digital asset innovation.",
+    title: "Cyprus Emerges as European Crypto Hub with New Framework",
+    excerpt: "Cypriot government introduces comprehensive crypto regulations, positioning the country as a European leader in digital asset innovation.",
     date: "June 28, 2026",
     category: "Adoption",
-    image: "/blog/nigeria-crypto.jpg",
+    image: "/blog/cyprus-crypto.jpg",
   },
   {
     id: 6,

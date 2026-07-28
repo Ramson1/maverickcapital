@@ -45,18 +45,18 @@ const testimonials: Testimonial[] = [
   {
     quote:
       "Good platform with consistent returns. The 10% monthly target is ambitious but they've delivered so far. Customer support could be faster during peak times.",
-    name: "Adebayo Ogunlesi",
-    role: "Business Owner, Lagos",
-    initials: "AO",
+    name: "Andreas Georgiou",
+    role: "Business Owner, Nicosia",
+    initials: "AG",
     accentColor: "bg-emerald-600",
     rating: 4,
   },
   {
     quote:
       "I've been investing for 6 months now and the results have been positive. The interface is clean and easy to use. Withdrawals are processed quickly which I appreciate.",
-    name: "Fatima Abdullahi",
-    role: "Teacher, Kano",
-    initials: "FA",
+    name: "Elena Christou",
+    role: "Teacher, Limassol",
+    initials: "EC",
     accentColor: "bg-purple-600",
     rating: 5,
   },
@@ -72,9 +72,9 @@ const testimonials: Testimonial[] = [
   {
     quote:
       "Excellent service and professional management. My account manager is very responsive and knowledgeable. The daily reports keep me informed about my investments.",
-    name: "Chidinma Okonkwo",
-    role: "Doctor, Enugu",
-    initials: "CO",
+    name: "Maria Ioannou",
+    role: "Doctor, Kyrenia",
+    initials: "MI",
     accentColor: "bg-rose-600",
     rating: 5,
   },
@@ -90,9 +90,9 @@ const testimonials: Testimonial[] = [
   {
     quote:
       "I was skeptical at first but after 3 months of consistent returns, I'm convinced. The team is professional and the platform is secure. Worth every penny.",
-    name: "Ngozi Eze",
-    role: "Accountant, Abuja",
-    initials: "NE",
+    name: "Mehmet Yılmaz",
+    role: "Accountant, Famagusta",
+    initials: "MY",
     accentColor: "bg-teal-600",
     rating: 5,
   },

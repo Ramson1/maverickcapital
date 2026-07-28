@@ -1765,14 +1765,28 @@ export function AdminNotificationsPage() {
     setSaving(true);
     if (editing) {
       const { error } = await supabase.from("mc_notifications")
-        .update({ title: formTitle.trim(), body: formMessage.trim(), type: formType, user_id: formTarget === "all" ? null : null })
+        .update({ title: formTitle.trim(), body: formMessage.trim(), type: formType, user_id: null })
         .eq("id", editing.id);
-      if (!error) { setNotifications((prev) => prev.map((n) => n.id === editing.id ? { ...n, title: formTitle.trim(), body: formMessage.trim(), type: formType } : n)); logAudit(supabase, `Updated notification "${formTitle.trim()}"`, "mc_notifications", editing.id); }
+      if (error) {
+        console.error("Notification update error:", error.message || error);
+        alert(`Failed to update notification: ${error.message}`);
+        setSaving(false);
+        return;
+      }
+      setNotifications((prev) => prev.map((n) => n.id === editing.id ? { ...n, title: formTitle.trim(), body: formMessage.trim(), type: formType } : n));
+      logAudit(supabase, `Updated notification "${formTitle.trim()}"`, "mc_notifications", editing.id);
     } else {
       const { data, error } = await supabase.from("mc_notifications")
         .insert({ title: formTitle.trim(), body: formMessage.trim(), type: formType })
         .select().single();
-      if (!error && data) { setNotifications((prev) => [data, ...prev]); logAudit(supabase, `Sent notification "${formTitle.trim()}"`, "mc_notifications", data.id); }
+      if (error || !data) {
+        console.error("Notification insert error:", error?.message || error);
+        alert(`Failed to send notification: ${error?.message || "Unknown error"}`);
+        setSaving(false);
+        return;
+      }
+      setNotifications((prev) => [data, ...prev]);
+      logAudit(supabase, `Sent notification "${formTitle.trim()}"`, "mc_notifications", data.id);
     }
     setSaving(false);
     setShowForm(false);

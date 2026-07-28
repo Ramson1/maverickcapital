@@ -68,7 +68,7 @@ We reserve the right to suspend or terminate your account for violation of these
 Maverick Capital shall not be liable for any indirect, incidental, or consequential damages arising from your use of our services.
 
 8. GOVERNING LAW
-These terms are governed by the laws of the Federal Republic of Nigeria.
+These terms are governed by the laws of the Republic of Cyprus.
 
 For questions about these Terms, contact us at legal@maverickcapital.com.`,
     },
@@ -290,7 +290,7 @@ For questions about our cookie usage, contact us at privacy@maverickcapital.com.
             <ul className="space-y-3">
               <li className="flex items-start gap-3 text-sm text-slate-400">
                 <MapPin size={16} className="mt-0.5 shrink-0 text-brand-400" />
-                <span>Lagos, Nigeria</span>
+                <span>Yeni Organize Sanayi Bölgesi, 5. Sk, Kızılay 0392, Cyprus</span>
               </li>
               <li className="flex items-center gap-3 text-sm text-slate-400">
                 <Mail size={16} className="shrink-0 text-brand-400" />

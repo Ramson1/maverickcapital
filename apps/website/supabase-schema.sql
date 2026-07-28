@@ -440,6 +440,20 @@ create table if not exists mc_notifications (
   created_at timestamptz default now()
 );
 
+-- Migrate legacy enum type column to plain text (older DBs used mc_notification_type enum)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'mc_notifications' and column_name = 'type' and data_type = 'USER-DEFINED'
+  ) then
+    alter table mc_notifications alter column type drop default;
+    alter table mc_notifications alter column type type text using type::text;
+    alter table mc_notifications alter column type set default 'info';
+  end if;
+end $$;
+drop type if exists mc_notification_type;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 14. SUPPORT TICKETS
 -- ─────────────────────────────────────────────────────────────────────────────

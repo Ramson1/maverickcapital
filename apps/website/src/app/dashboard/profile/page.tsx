@@ -489,7 +489,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Phone</label>
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!editing} placeholder="+1 234 567 8900" />
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={!editing} placeholder="+90 392 000 0000" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-surface-700 dark:text-surface-300">Membership Level</label>

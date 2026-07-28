@@ -129,11 +129,11 @@ The $500 billion milestone represents more than just a number — it signals the
   },
   {
     id: 5,
-    title: "Nigeria Leads African Crypto Adoption with New Framework",
-    excerpt: "Nigerian government introduces comprehensive crypto regulations, positioning the country as a continental leader in digital asset innovation.",
+    title: "Cyprus Emerges as European Crypto Hub with New Framework",
+    excerpt: "Cypriot government introduces comprehensive crypto regulations, positioning the country as a European leader in digital asset innovation.",
     date: "June 28, 2026",
     category: "Adoption",
-    content: `Nigeria has cemented its position as a leader in cryptocurrency adoption across Africa with the introduction of a comprehensive regulatory framework that balances innovation with consumer protection. The new regulations provide clear guidelines for cryptocurrency businesses operating in the country while fostering an environment conducive to technological advancement.
+    content: `Cyprus has cemented its position as a leader in cryptocurrency adoption across Europe with the introduction of a comprehensive regulatory framework that balances innovation with consumer protection. The new regulations provide clear guidelines for cryptocurrency businesses operating in the country while fostering an environment conducive to technological advancement.
 
 **Key Elements of the Framework**
 
@@ -151,11 +151,11 @@ A regulatory sandbox has been established to allow fintech companies to test inn
 
 **Impact on the Market**
 
-The regulatory clarity has already attracted significant investment interest, with several major international cryptocurrency exchanges announcing plans to establish operations in Nigeria. Local startups are also benefiting from the supportive environment, with venture capital funding for Nigerian crypto companies reaching record levels.
+The regulatory clarity has already attracted significant investment interest, with several major international cryptocurrency exchanges announcing plans to establish operations in Cyprus. Local startups are also benefiting from the supportive environment, with venture capital funding for Cypriot crypto companies reaching record levels.
 
 **Regional Leadership**
 
-Nigeria's progressive approach is influencing other African nations to develop their own cryptocurrency regulations. The country is positioning itself as a hub for cryptocurrency innovation in Africa, with the potential to create thousands of high-quality jobs and attract significant foreign investment.
+Cyprus's progressive approach is influencing other European nations to develop their own cryptocurrency regulations. The country is positioning itself as a hub for cryptocurrency innovation in Europe, with the potential to create thousands of high-quality jobs and attract significant foreign investment.
 
 **Challenges Ahead**
 
@@ -163,7 +163,7 @@ While the framework is a positive development, implementation will be key. Regul
 
 **Looking Forward**
 
-Industry participants are optimistic about Nigeria's crypto future. With its large, tech-savvy population, growing startup ecosystem, and now clear regulatory framework, Nigeria is well-positioned to become a global leader in cryptocurrency adoption and innovation.`,
+Industry participants are optimistic about Cyprus's crypto future. With its strategic location, growing fintech ecosystem, and now clear regulatory framework, Cyprus is well-positioned to become a global leader in cryptocurrency adoption and innovation.`,
   },
   {
     id: 6,
@@ -1125,8 +1125,8 @@ Billions of people in developing countries lack access to traditional banking se
 
 **Leading Countries**
 
-**Nigeria**
-Nigeria has emerged as a leader in crypto adoption, with millions of citizens using cryptocurrencies for peer-to-peer transactions, savings, and international commerce. Despite regulatory challenges, grassroots adoption continues to grow.
+**Cyprus**
+Cyprus has emerged as a leader in crypto adoption, with growing numbers of citizens and businesses using cryptocurrencies for payments, savings, and international commerce. With a supportive regulatory environment, adoption continues to grow.
 
 **El Salvador**
 El Salvador made headlines by adopting Bitcoin as legal tender, becoming the first country to do so. The experiment has provided valuable lessons about national-level cryptocurrency adoption.
