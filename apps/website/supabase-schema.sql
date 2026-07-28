@@ -97,6 +97,33 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
 
+-- Remove legacy broken trigger/functions from older schema versions.
+-- The old mc_handle_new_user() called mc_generate_referral_code() which no
+-- longer exists, causing signup 500 errors and users without profiles.
+drop trigger if exists mc_on_auth_user_created on auth.users;
+drop function if exists mc_handle_new_user() cascade;
+drop function if exists mc_generate_referral_code() cascade;
+
+-- Backfill: create profiles for any auth users that are missing one
+-- (e.g. users who signed up while the trigger was broken). Idempotent.
+create or replace function _backfill_missing_profiles()
+returns void as $$
+begin
+  insert into mc_profiles (id, full_name, email, referral_code)
+  select
+    u.id,
+    coalesce(u.raw_user_meta_data->>'full_name', ''),
+    u.email,
+    'MC' || upper(substr(md5(u.id::text || random()::text), 1, 8))
+  from auth.users u
+  left join mc_profiles p on p.id = u.id
+  where p.id is null;
+end;
+$$ language plpgsql security definer;
+
+select _backfill_missing_profiles();
+drop function if exists _backfill_missing_profiles();
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. ROLES & USER_ROLES
 -- ─────────────────────────────────────────────────────────────────────────────
